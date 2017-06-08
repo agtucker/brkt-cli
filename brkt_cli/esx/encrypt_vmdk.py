@@ -48,12 +48,14 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                                 create_ova=False, target_path=None,
                                 image_name=None, ovftool_path=None,
                                 user_data_str=None, serial_port_file_name=None,
-                                status_port=ENCRYPTOR_STATUS_PORT, static_ip=None):
+                                status_port=ENCRYPTOR_STATUS_PORT,
+                                static_ip=None):
     try:
         mv_vm_name = vc_swc.get_vm_name(vm)
         # clone the guest vmdk
         new_guest_vmdk_name = vc_swc.get_session_vmdk_name(guest_vmdk)
-        vc_swc.clone_disk(source_disk_name=vc_swc.get_datastore_path(guest_vmdk),
+        source_disk = vc_swc.get_datastore_path(guest_vmdk)
+        vc_swc.clone_disk(source_disk_name=source_disk,
                           dest_disk_name=new_guest_vmdk_name)
         # Reconfigure VM with more CPUs and memory
         vc_swc.reconfigure_vm_cpu_ram(vm)
@@ -65,9 +67,9 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
         # Attach empty disk
         size = vc_swc.get_disk_size(vm, 2)
         if crypto_policy == CRYPTO_XTS:
-            encrypted_guest_size = size + (1024*1024)
+            encrypted_guest_size = size + (6 * 1024*1024)
         else:
-            encrypted_guest_size = (2 * size) + (1024*1024)
+            encrypted_guest_size = (2 * size) + (6 * 1024*1024)
         vc_swc.add_disk(vm, disk_size=encrypted_guest_size, unit_number=1)
         # Add CDROM if required
         if vc_swc.cdrom:
@@ -107,6 +109,7 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
                 break
         # detach unencrypted guest root
         vc_swc.power_off(vm)
+        vc_swc.detach_disk(vm, unit_number=0)
         vc_swc.detach_disk(vm, unit_number=2)
         # detach serial port
         if serial_port_file_name:
@@ -126,7 +129,8 @@ def create_ovf_image_from_mv_vm(vc_swc, enc_svc_cls, vm, guest_vmdk,
             # clone the vm to create template
             if vc_swc.is_esx_host() is False:
                 log.info("Creating the template VM")
-                template_vm = vc_swc.clone_vm(vm, vm_name=vm_name, template=True)
+                template_vm = vc_swc.clone_vm(vm, vm_name=vm_name,
+                                              template=True)
                 print(vc_swc.get_vm_name(template_vm))
         # Clean up encryptor VM in case of successful encryption
         vc_swc.set_teardown(False)
@@ -180,7 +184,8 @@ def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
                     target_path=None, image_name=None, ovftool_path=None,
                     ovf_name=None, download_file_list=None,
                     user_data_str=None, serial_port_file_name=None,
-                    status_port=ENCRYPTOR_STATUS_PORT, cleanup=True, static_ip=None):
+                    status_port=ENCRYPTOR_STATUS_PORT, cleanup=True,
+                    static_ip=None):
     vm = None
     try:
         if (ovf_name is None or download_file_list is None):
@@ -206,14 +211,14 @@ def encrypt_from_s3(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
 
 def encrypt_from_local_ovf(vc_swc, enc_svc_cls, guest_vmdk, crypto_policy,
                            vm_name=None, create_ovf=False, create_ova=False,
-                            target_path=None, image_name=None, ovftool_path=None,
-                           source_image_path=None, ovf_image_name=None,
-                           user_data_str=None, serial_port_file_name=None,
+                           target_path=None, image_name=None,
+                           ovftool_path=None, source_image_path=None,
+                           ovf_image_name=None, user_data_str=None,
+                           serial_port_file_name=None,
                            status_port=ENCRYPTOR_STATUS_PORT, static_ip=None):
     vm = None
     try:
-        if ((source_image_path is None) or
-            (ovf_image_name is None)):
+        if ((source_image_path is None) or (ovf_image_name is None)):
             log.error("Metavisor OVF path needs to be specified")
             return
         # Launch OVF

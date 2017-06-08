@@ -25,6 +25,11 @@ def setup_encryption(gcp_svc,
                      zone,
                      image_project,
                      crypto_policy):
+    ''' Add 6GB to the size of the guest root disk so that we can combine
+        the metavisor disk contents with the guest disk contents and
+        produce an "encapsulated" guest root disk. 6GB is the current
+        metavisor disk size. It should not be hardcoded.
+    '''
     try:
         # create disk from guest image
         gcp_svc.disk_from_image(zone, image_id, instance_name, image_project)
@@ -37,9 +42,9 @@ def setup_encryption(gcp_svc,
         # of the unencrypted guest root (GCM)
         log.info('Creating disk for encrypted image')
         if crypto_policy == CRYPTO_XTS:
-            gcp_svc.create_disk(zone, encrypted_image_disk, guest_size + 1)
+            gcp_svc.create_disk(zone, encrypted_image_disk, guest_size + 6)
         else:
-            gcp_svc.create_disk(zone, encrypted_image_disk, guest_size * 2 + 1)
+            gcp_svc.create_disk(zone, encrypted_image_disk, guest_size * 2 + 6)
         #
         # Amazing but true - just attach a big drive to get more IOPS
         # to be shared by all volumes attached to this VM. We don't
@@ -103,24 +108,19 @@ def do_encryption(gcp_svc,
         if f:
             log.info('Encryption failed. Writing console to %s' % f)
         raise
-    retry(function=gcp_svc.delete_instance,
-            on=[httplib.BadStatusLine, socket.error, errors.HttpError])(zone, encryptor)
+    retry(function=gcp_svc.delete_instance, on=[httplib.BadStatusLine,
+          socket.error, errors.HttpError])(zone, encryptor)
 
 
-def create_image(gcp_svc, zone, encrypted_image_disk, encrypted_image_name, encryptor):
+def create_image(gcp_svc, zone, encrypted_image_disk, encrypted_image_name,
+                 encryptor):
     try:
-        # snapshot encrypted guest disk
-        log.info("Creating snapshot of encrypted image disk")
-        gcp_svc.create_snapshot(zone, encrypted_image_disk, encrypted_image_name)
-        # create image from encryptor root
-        gcp_svc.wait_for_detach(zone, encryptor)
-
-        # create image from mv root disk and snapshot
-        # encrypted guest root disk
-        log.info("Creating metavisor image")
-        gcp_svc.create_gcp_image_from_disk(zone, encrypted_image_name, encryptor)
+        # create image from encrypted image disk
+        gcp_svc.wait_for_detach(zone, encrypted_image_disk)
+        log.info("Creating bracketized guest image")
+        gcp_svc.create_gcp_image_from_disk(zone, encrypted_image_name,
+                                           encrypted_image_disk)
         gcp_svc.wait_image(encrypted_image_name)
-        gcp_svc.wait_snapshot(encrypted_image_name)
         log.info("Image %s successfully created!", encrypted_image_name)
     except:
         log.info('Image creation failed.')
@@ -137,8 +137,9 @@ def encrypt(gcp_svc, enc_svc_cls, image_id, encryptor_image,
         log.info('Retrieving encryptor image from GCS bucket')
         if not encryptor_image:
             try:
-                encryptor_image = gcp_svc.get_latest_encryptor_image(zone,
-                    image_bucket, image_file=image_file)
+                _ = gcp_svc.get_latest_encryptor_image(zone, image_bucket,
+                                                       image_file=image_file)
+                encryptor_image = _
             except errors.HttpError as e:
                 encryptor_image = None
                 log.exception('GCP API call to create image from file failed')
@@ -164,11 +165,12 @@ def encrypt(gcp_svc, enc_svc_cls, image_id, encryptor_image,
         # customer image and blank disk
         do_encryption(gcp_svc, enc_svc_cls, zone, encryptor, encryptor_image,
                       instance_name, instance_config, encrypted_image_disk,
-                      crypto_policy, network, subnetwork, status_port=status_port,
-                      gcp_tags=gcp_tags)
+                      crypto_policy, network, subnetwork,
+                      status_port=status_port, gcp_tags=gcp_tags)
 
         # create image
-        create_image(gcp_svc, zone, encrypted_image_disk, encrypted_image_name, encryptor)
+        create_image(gcp_svc, zone, encrypted_image_disk, encrypted_image_name,
+                     encryptor)
 
         return encrypted_image_name
     except errors.HttpError as e:

@@ -51,8 +51,7 @@ from brkt_cli import encryptor_service
 from brkt_cli.aws import aws_service
 from brkt_cli.aws.aws_constants import (
     NAME_ENCRYPTOR, DESCRIPTION_ENCRYPTOR,
-    NAME_ENCRYPTED_ROOT_SNAPSHOT, NAME_METAVISOR_ROOT_SNAPSHOT,
-    DESCRIPTION_SNAPSHOT, NAME_ENCRYPTED_ROOT_VOLUME,
+    NAME_METAVISOR_ROOT_SNAPSHOT, NAME_ENCRYPTED_ROOT_VOLUME,
     NAME_METAVISOR_ROOT_VOLUME, NAME_ENCRYPTED_IMAGE_SUFFIX,
     SUFFIX_ENCRYPTED_IMAGE, DEFAULT_DESCRIPTION_ENCRYPTED_IMAGE,
     TAG_ENCRYPTOR, TAG_ENCRYPTOR_SESSION_ID, TAG_ENCRYPTOR_AMI
@@ -61,8 +60,7 @@ from brkt_cli.aws.aws_service import (
     wait_for_instance, stop_and_wait,
     wait_for_image, create_encryptor_security_group, run_guest_instance,
     clean_up, log_exception_console, snapshot_log_volume,
-    wait_for_volume_attached, wait_for_snapshots,
-    snapshot_root_volume)
+    wait_for_volume_attached, snapshot_root_volume)
 from brkt_cli.instance_config import InstanceConfig
 from brkt_cli.user_data import gzip_user_data
 from brkt_cli.util import (
@@ -145,9 +143,9 @@ def _run_encryptor_instance(
         volume_type='gp2',
         delete_on_termination=True)
     if crypto_policy == CRYPTO_XTS:
-        guest_encrypted_root.size = root_size + 1
+        guest_encrypted_root.size = root_size + 6
     else:
-        guest_encrypted_root.size = 2 * root_size + 1
+        guest_encrypted_root.size = 2 * root_size + 6
 
     # Use 'sd' names even though AWS maps these to 'xvd'
     # The AWS GUI only exposes 'sd' names, and won't allow
@@ -290,33 +288,14 @@ def _snapshot_encrypted_instance(
     aws_svc.stop_instance(encryptor_instance.id)
     wait_for_instance(aws_svc, encryptor_instance.id, state='stopped')
 
-    description = DESCRIPTION_SNAPSHOT % {'image_id': image_id}
-
     # Set up new Block Device Mappings
     log.debug('Creating block device mapping')
     new_bdm = BlockDeviceMapping()
     if not vol_type or vol_type == '':
         vol_type = 'gp2'
 
-    # Snapshot volumes.
-    snap_guest = aws_svc.create_snapshot(
-        encryptor_bdm['/dev/sdg'].volume_id,
-        name=NAME_ENCRYPTED_ROOT_SNAPSHOT,
-        description=description
-    )
-    log.info(
-        'Creating snapshots for the new encrypted AMI: %s' % (
-                snap_guest.id)
-    )
-    wait_for_snapshots(aws_svc, snap_guest.id)
-    dev_guest_root = EBSBlockDeviceType(
-        volume_type=vol_type,
-        snapshot_id=snap_guest.id,
-        iops=iops,
-        delete_on_termination=True
-    )
-    mv_root_id = encryptor_bdm['/dev/sda1'].volume_id
-    new_bdm['/dev/sdf'] = dev_guest_root
+    # The once empty disk is the one and only disk
+    mv_root_id = encryptor_bdm['/dev/sdg'].volume_id
 
     if not legacy:
         log.info("Detaching new guest root %s" % (mv_root_id,))
@@ -402,16 +381,6 @@ def _register_ami(aws_svc, encryptor_instance, encryptor_image, name,
         block_device_mapping=mv_bdm
     )
 
-    if not legacy:
-        log.info("Deleting volume %s" % (mv_root_id,))
-        aws_svc.detach_volume(
-            mv_root_id,
-            instance_id=guest_instance.id,
-            force=True
-        )
-        aws_service.wait_for_volume(aws_svc, mv_root_id)
-        aws_svc.delete_volume(mv_root_id)
-
     log.info('Registered AMI %s based on the snapshots.', ami)
     wait_for_image(aws_svc, ami)
     image = aws_svc.get_image(ami, retry=True)
@@ -462,7 +431,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
     # on virtualization type, but we'll support a PV encryptor
     # and a HVM guest (legacy)
     log.debug('Guest type: %s Encryptor type: %s',
-        guest_image.virtualization_type, mv_image.virtualization_type)
+              guest_image.virtualization_type, mv_image.virtualization_type)
     if guest_image.virtualization_type != 'hvm':
         raise BracketError(
             'Unsupported virtualization type: %s' %
@@ -472,7 +441,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
     root_device_name = guest_image.root_device_name
     if not guest_image.block_device_mapping.get(root_device_name):
             log.warn("AMI must have root_device_name in block_device_mapping "
-                    "in order to preserve guest OS license information")
+                     "in order to preserve guest OS license information")
             legacy = True
     if guest_image.root_device_name != "/dev/sda1":
         log.warn("Guest Operating System license information will not be "
@@ -533,7 +502,7 @@ def encrypt(aws_svc, enc_svc_cls, image_id, encryptor_ami, crypto_policy,
 
         if net_sriov_attr.get("sriovNetSupport") != "simple":
             log.info('Enabling sriovNetSupport for guest instance %s',
-                      guest_instance.id)
+                     guest_instance.id)
             try:
                 ret = aws_svc.modify_instance_attribute(guest_instance.id,
                                                         "sriovNetSupport",
