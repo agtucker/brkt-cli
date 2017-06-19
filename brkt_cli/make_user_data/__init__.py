@@ -60,22 +60,7 @@ def make(values, config):
     """ Generate user-data based on command line options.
     :return the MIME content as a string
     """
-    brkt_env = None
-    if values.unencrypted_guest:
-        # Only include Yeti endpoints if this userdata is going to be used to
-        # launch Metavisors with unencrypted guests (i.e., *not* encrypted
-        # instances). Encrypted images/AMIs have the Yeti endpoints
-        # 'baked in', so the endpoints are only needed when launching the
-        # metavisor instance from the 'creator' image/AMI (with the
-        # unencrypted guest root).
-        brkt_env = brkt_cli.brkt_env_from_values(values, config)
-    else:
-        if values.service_domain:
-            raise ValidationError(
-                '--service-domain is only allowed with --unencrypted-guest')
-        if values.brkt_env:
-            raise ValidationError(
-                '--brkt-env is only allowed with --unencrypted-guest')
+    brkt_env = brkt_cli.brkt_env_from_values(values, config)
 
     lt = values.token
     if not lt and values.brkt_tags:

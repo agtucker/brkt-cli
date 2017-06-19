@@ -135,6 +135,17 @@ class TestMakeUserData(unittest.TestCase):
         values.unencrypted_guest = True
         self.run_cmd(values)
 
+    def test_encrypted_guest_and_service_domain(self):
+        values = self._init_values()
+        values.service_domain = 'stage.mgmt.brkt.com'
+        self.run_cmd(values)
+
+    def test_encrypted_guest_and_service_domain_and_proxy(self):
+        values = self._init_values()
+        values.service_domain = 'stage.mgmt.brkt.com'
+        values.proxies = ['10.2.3.4:3128']
+        self.run_cmd(values)
+
     def test_base64(self):
         values = self._init_values()
         values.base64 = True

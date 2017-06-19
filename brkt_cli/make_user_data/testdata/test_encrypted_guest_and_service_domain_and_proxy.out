@@ -7,15 +7,13 @@ Content-Type: text/brkt-config; charset="utf-8"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
 
-{"brkt": {"api_host": "yetiapi.foo.com:443", "hsmproxy_host": "hsmproxy.foo.com:443", "identity_token": "THIS_IS_NOT_A_JWT", "network_host": "network.foo.com:443", "solo_mode": "metavisor"}}
+{"brkt": {"api_host": "yetiapi.stage.mgmt.brkt.com:443", "hsmproxy_host": "hsmproxy.stage.mgmt.brkt.com:443", "network_host": "network.stage.mgmt.brkt.com:443", "solo_mode": "metavisor"}}
 ----===============HI-20131203==--
 Content-Type: text/brkt-files; charset="utf-8"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
 
-/var/brkt/instance_config/logging.yaml: {contents: 'syslog-server-address: [ 172.31.4.105
-    ]
-
-    '}
+/var/brkt/instance_config/proxy.yaml: {contents: "version: 2.0\nproxies:\n  - host:\
+    \ 10.2.3.4\n    port: 3128\n    protocol: https\n    usage: encryptor\n"}
 
 ----===============HI-20131203==----

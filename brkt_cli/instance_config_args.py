@@ -135,6 +135,16 @@ def setup_instance_config_args(parser, parsed_config,
         default=parsed_config.get_option('token'),
         required=False
     )
+    token_group.add_argument(
+        '--fun',
+        help=(
+            'Run the BRKT Entertainment System (TM) while you wait for the '
+            'command to complete.'
+        ),
+        dest='fun',
+        action='store_true',
+        default=False,
+    )
 
     if brkt_tag:
         argutil.add_brkt_tag(token_group)

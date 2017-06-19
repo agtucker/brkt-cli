@@ -45,7 +45,7 @@ def setup_wrap_with_vcenter_args(parser):
     )
     esx_args.add_static_dns_server(
         parser,
-        help="Specify the static DNS servers of the VM"
+        help="Specify the static DNS server of the VM"
     )
     esx_args.add_cpu(parser, help="Number of CPUs to assign to the VM")
     esx_args.add_memory(parser, help="Memory to assign to the VM")

@@ -1,0 +1,11 @@
+From nobody Tue Dec  3 19:00:57 2013
+Content-Type: multipart/mixed; boundary="--===============HI-20131203==--"
+MIME-Version: 1.0
+
+----===============HI-20131203==--
+Content-Type: text/brkt-config; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+
+{"brkt": {"api_host": "yetiapi.stage.mgmt.brkt.com:443", "hsmproxy_host": "hsmproxy.stage.mgmt.brkt.com:443", "network_host": "network.stage.mgmt.brkt.com:443", "solo_mode": "metavisor"}}
+----===============HI-20131203==----

@@ -7,5 +7,5 @@ Content-Type: text/brkt-config; charset="utf-8"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
 
-{"brkt": {"solo_mode": "metavisor", "ssh-public-key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCU5/SKAg/nMIA2ebhmFN+dWztXvgfD0bZToNb6OmMOz2aPH3Wi0DwUvmeYdftLbZpto8brhpbjrVqE2i9PL4Gslz4GjmWoyFW6Pvo0W2Pjd64oXGCnGvGH9WYbOrEgz/kEvZvIVPlnP9nRzzDvhElRUf9oWh+y6usB6F7Y0l1w4rkhnvVQw//4VW5ILFiZl76Vu00Xy3bUYgvaZZxu2l9Lnquf4aKLHume2kc+S87vxppYA40N//MiaWCLVTxgjVKIG2RYm2St+WA/NYBDy0ab87iZspffDtbIlYKz7sNTbEM6pJQSvFqdZKygwBpD5GrmI4QHAh2s+M8CsKkW8vmf"}}
+{"brkt": {"api_host": "yetiapi.foo.com:443", "hsmproxy_host": "hsmproxy.foo.com:443", "network_host": "network.foo.com:443", "solo_mode": "metavisor", "ssh-public-key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCU5/SKAg/nMIA2ebhmFN+dWztXvgfD0bZToNb6OmMOz2aPH3Wi0DwUvmeYdftLbZpto8brhpbjrVqE2i9PL4Gslz4GjmWoyFW6Pvo0W2Pjd64oXGCnGvGH9WYbOrEgz/kEvZvIVPlnP9nRzzDvhElRUf9oWh+y6usB6F7Y0l1w4rkhnvVQw//4VW5ILFiZl76Vu00Xy3bUYgvaZZxu2l9Lnquf4aKLHume2kc+S87vxppYA40N//MiaWCLVTxgjVKIG2RYm2St+WA/NYBDy0ab87iZspffDtbIlYKz7sNTbEM6pJQSvFqdZKygwBpD5GrmI4QHAh2s+M8CsKkW8vmf"}}
 ----===============HI-20131203==----

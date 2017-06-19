@@ -7,7 +7,7 @@ Content-Type: text/brkt-config; charset="utf-8"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
 
-{"brkt": {"solo_mode": "metavisor"}}
+{"brkt": {"api_host": "yetiapi.foo.com:443", "hsmproxy_host": "hsmproxy.foo.com:443", "network_host": "network.foo.com:443", "solo_mode": "metavisor"}}
 ----===============HI-20131203==--
 Content-Type: text/x-shellscript; charset="utf-8"
 MIME-Version: 1.0

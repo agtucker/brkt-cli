@@ -142,9 +142,10 @@ $ brkt aws encrypt --help
 usage: brkt aws encrypt [-h] [--encrypted-ami-name NAME]
                         [--guest-instance-type TYPE] [--no-validate] --region
                         NAME [--security-group ID] [--subnet ID]
-                        [--aws-tag KEY=VALUE] [--ntp-server DNS_NAME]
+                        [--aws-tag KEY=VALUE] [--metavisor-version NAME]
+                        [--ntp-server DNS_NAME]
                         [--proxy HOST:PORT | --proxy-config-file PATH]
-                        [--status-port PORT]
+                        [--status-port PORT] [--ca-cert PATH]
                         [--token TOKEN  | --brkt-tag NAME=VALUE]
                         ID
 
@@ -161,11 +162,15 @@ optional arguments:
                         claim. All characters must be alphanumeric or [-_.].
                         The tag name cannot be a JWT registered claim name
                         (see RFC 7519).
+  --ca-cert PATH        Certificate that Metavisor uses to communicate with a
+                        Customer Managed MCP.
   --encrypted-ami-name NAME
                         Specify the name of the generated encrypted AMI
   --guest-instance-type TYPE
                         The instance type to use when running the unencrypted
                         guest instance (default: m3.medium)
+  --metavisor-version NAME
+                        Metavisor version [e.g 1.2.12 ] (default: latest)
   --no-validate         Don't validate AMIs, subnet, and security groups
   --ntp-server DNS_NAME
                         NTP server to sync Metavisor clock. May be specified
@@ -196,9 +201,10 @@ usage: brkt aws update [-h] [--encrypted-ami-name NAME]
                        [--guest-instance-type TYPE]
                        [--updater-instance-type TYPE] [--no-validate] --region
                        NAME [--security-group ID] [--subnet ID]
-                       [--aws-tag KEY=VALUE] [--ntp-server DNS_NAME]
+                       [--aws-tag KEY=VALUE] [--metavisor-version NAME]
+                       [--ntp-server DNS_NAME]
                        [--proxy HOST:PORT | --proxy-config-file PATH]
-                       [--status-port PORT]
+                       [--status-port PORT] [--ca-cert PATH]
                        [--token TOKEN | --brkt-tag NAME=VALUE]
                        ID
 
@@ -215,12 +221,16 @@ optional arguments:
                         claim. All characters must be alphanumeric or [-_.].
                         The tag name cannot be a JWT registered claim name
                         (see RFC 7519).
+  --ca-cert PATH        Certificate that Metavisor uses to communicate with a
+                        Customer Managed MCP.
   --encrypted-ami-name NAME
                         Specify the name of the generated encrypted AMI
   --guest-instance-type TYPE
                         The instance type to use when running the encrypted
                         guest instance. Default: m3.medium (default:
                         m3.medium)
+  --metavisor-version NAME
+                        Metavisor version [e.g 1.2.12 ] (default: latest)
   --no-validate         Don't validate AMIs, subnet, and security groups
   --ntp-server DNS_NAME
                         NTP server to sync Metavisor clock. May be specified
@@ -254,10 +264,10 @@ usage: brkt aws wrap-guest-image [-h] [--wrapped-instance-name NAME]
                                  [--instance-type TYPE] [--no-validate]
                                  --region NAME [--security-group ID]
                                  [--subnet ID] [--aws-tag KEY=VALUE]
-                                 [--key NAME] [--iam ROLE]
-                                 [--ntp-server DNS_NAME]
+                                 [--metavisor-version NAME] [--key NAME]
+                                 [--iam ROLE] [--ntp-server DNS_NAME]
                                  [--proxy HOST:PORT | --proxy-config-file PATH]
-                                 [--status-port PORT]
+                                 [--status-port PORT] [--ca-cert PATH]
                                  [--token TOKEN | --brkt-tag NAME=VALUE]
                                  ID
 
@@ -281,6 +291,8 @@ optional arguments:
   --subnet ID           Launch instances in this subnet
   --aws-tag KEY=VALUE   Set an AWS tag on resources created during update. May
                         be specified multiple times.
+  --metavisor-version NAME
+                        Metavisor version [e.g 1.2.12 ] (default: latest)
   --key NAME            SSH key pair name
   --iam ROLE            The IAM role to use for the launched instance
   --ntp-server DNS_NAME
@@ -294,6 +306,8 @@ optional arguments:
   --status-port PORT    Specify the port to receive http status of encryptor.
                         Any port in range 1-65535 can be used except for port
                         81. (default: 80)
+  --ca-cert PATH        Certificate that Metavisor uses to communicate with a
+                        Customer Managed MCP.
   --token TOKEN         Token (JWT) that Metavisor uses to authenticate with
                         the Bracket service. Use the make-token subcommand to
                         generate a token.

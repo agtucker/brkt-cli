@@ -79,12 +79,18 @@ usage: brkt vmware encrypt-with-vcenter [-h] --vcenter-host DNS_NAME
                                         [--cpu-count N] [--memory GB]
                                         [--encrypted-image-name NAME]
                                         [--template-vm-name NAME]
+                                        [--static-ip-address IP]
+                                        [--static-subnet-mask IP]
+                                        [--static-default-router IP]
+                                        [--static-dns-domain DNS_NAME]
+                                        [--static-dns-server DNS_NAME]
                                         [--no-verify-cert] [--create-ovf]
                                         [--create-ova]
                                         [--encrypted-image-directory NAME]
                                         [--ovftool-path PATH]
                                         [--ovf-source-directory PATH]
                                         [--metavisor-ovf-image-name NAME]
+                                        [--metavisor-version NAME]
                                         [--console-file-name NAME]
                                         [--disk-type TYPE]
                                         [--ntp-server DNS_NAME]
@@ -120,6 +126,8 @@ optional arguments:
   --memory GB           Memory to assign to Encryptor VM (default: 32)
   --metavisor-ovf-image-name NAME
                         Metavisor OVF name (default: None)
+  --metavisor-version NAME
+                        Metavisor version [e.g 1.2.12 ] (default: latest)
   --no-verify-cert      Don't validate vCenter certificate
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
@@ -127,11 +135,21 @@ optional arguments:
   --ovf-source-directory PATH
                         Local path to the OVF directory (default: None)
   --ovftool-path PATH   ovftool executable path (default: ovftool)
-  --proxy HOST:PORT     Use this HTTPS proxy during encryption. May be
-                        specified multiple times. (default: None)
+  --proxy HOST:PORT     Proxy that Metavisor uses to talk to the Bracket
+                        service
   --proxy-config-file PATH
-                        Path to proxy.yaml file that will be used during
-                        encryption (default: None)
+                        proxy.taml file that defines the proxy configuration
+                        that metavisor uses to talk to the Bracket service
+  --static-default-router IP
+                        Specify the static default router of the encryptor VM
+  --static-dns-domain DNS_NAME
+                        Specify the static DNS domain of the encryptor VM
+  --static-dns-server DNS_NAME
+                        Specify the static DNS server of the encryptor VM
+  --static-ip-address IP
+                        Specify the static IP address of the encryptor VM
+  --static-subnet-mask IP
+                        Specify the static subnet mask of the encryptor VM
   --status-port PORT    Specify the port to receive http status of encryptor.
                         Any port in range 1-65535 can be used except for port
                         81. (default: 80)
@@ -166,6 +184,11 @@ usage: brkt vmware update-with-vcenter [-h] --vcenter-host DNS_NAME
                                        [--vcenter-datastore NAME]
                                        [--vcenter-cluster NAME]
                                        [--vcenter-network-name NAME]
+                                       [--static-ip-address IP]
+                                       [--static-subnet-mask IP]
+                                       [--static-default-router IP]
+                                       [--static-dns-domain DNS_NAME]
+                                       [--static-dns-server DNS_NAME]
                                        [--cpu-count N] [--memory GB]
                                        [--template-vm-name NAME]
                                        [--encrypted-image-directory NAME]
@@ -175,11 +198,12 @@ usage: brkt vmware update-with-vcenter [-h] --vcenter-host DNS_NAME
                                        [--no-verify-cert]
                                        [--ovf-source-directory PATH]
                                        [--metavisor-ovf-image-name NAME]
+                                       [--metavisor-version NAME]
                                        [--use-esx-host]
                                        [--ntp-server DNS_NAME]
                                        [--proxy HOST:PORT | --proxy-config-file PATH]
                                        [--status-port PORT]
-                                       [--token TOKEN --brkt-tag NAME=VALUE]
+                                       [--token TOKEN | --brkt-tag NAME=VALUE]
 
 Update an encrypted VMDK with the latest Metavisor using vCenter
 
@@ -199,6 +223,8 @@ optional arguments:
   --memory GB           Memory to assign to Encryptor VM (default: 32)
   --metavisor-ovf-image-name NAME
                         Metavisor OVF name (default: None)
+  --metavisor-version NAME
+                        Metavisor version [e.g 1.2.12 ] (default: latest)
   --no-verify-cert      Don't validate vCenter certificate
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
@@ -207,11 +233,21 @@ optional arguments:
                         Local path to the Metavisor OVF directory (default:
                         None)
   --ovftool-path PATH   ovftool executable path (default: ovftool)
-  --proxy HOST:PORT     Use this HTTPS proxy during encryption. May be
-                        specified multiple times. (default: None)
+  --proxy HOST:PORT     Proxy that the Metavisor uses to talk to the Bracket
+                        service
   --proxy-config-file PATH
-                        Path to proxy.yaml file that will be used during
-                        encryption (default: None)
+                        proxy.yaml file that defines the proxy configuration
+                        that metavisor uses to talk to the Bracket service
+  --static-default-router IP
+                        Specify the static default router of the updater VM
+  --static-dns-domain DNS_NAME
+                        Specify the static DNS domain of the updater VM
+  --static-dns-server DNS_NAME
+                        Specify the static DNS server of the updater VM
+  --static-ip-address IP
+                        Specify the static IP address of the updater VM
+  --static-subnet-mask IP
+                        Specify the static subnet mask of the updater VM
   --status-port PORT    Specify the port to receive http status of encryptor.
                         Any port in range 1-65535 can be used except for port
                         81. (default: 80)
@@ -250,10 +286,16 @@ usage: brkt vmware wrap-with-vcenter [-h] --vcenter-host DNS_NAME
                                      [--vcenter-datastore NAME]
                                      [--vcenter-cluster NAME]
                                      [--vcenter-network-name NAME]
+                                     [--static-ip-address IP]
+                                     [--static-subnet-mask IP]
+                                     [--static-default-router IP]
+                                     [--static-dns-domain DNS_NAME]
+                                     [--static-dns-server DNS_NAME]
                                      [--cpu-count N] [--memory GB]
                                      [--vm-name NAME] [--no-verify-cert]
                                      [--ovf-source-directory PATH]
                                      [--metavisor-ovf-image-name NAME]
+                                     [--metavisor-version NAME]
                                      [--disk-type TYPE]
                                      [--ntp-server DNS_NAME]
                                      [--proxy HOST:PORT | --proxy-config-file PATH]
@@ -279,6 +321,8 @@ optional arguments:
   --memory GB           Memory to assign to Encryptor VM (default: 32)
   --metavisor-ovf-image-name NAME
                         Metavisor OVF name (default: None)
+  --metavisor-version NAME
+                        Metavisor version [e.g 1.2.12 ] (default:latest)
   --no-verify-cert      Don't validate vCenter certificate
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
@@ -286,11 +330,21 @@ optional arguments:
   --ovf-source-directory PATH
                         Local path to the Metavisor OVF directory (default:
                         None)
-  --proxy HOST:PORT     Use this HTTPS proxy during encryption. May be
-                        specified multiple times. (default: None)
+  --proxy HOST:PORT     Proxy that Metavisor uses to talk to the Bracket
+                        service
   --proxy-config-file PATH
-                        Path to proxy.yaml file that will be used during
-                        encryption (default: None)
+                        proxy.yaml file that defines the proxy configuration
+                        that metavisor uses to talk to the Bracket service
+  --static-default-router IP
+                        Specify the static default router of the VM
+  --static-dns-domain DNS_NAME
+                        Specify the static DNS domain of the VM
+  --static-dns-server DNS_NAME
+                        Specify the static DNS server of the VM
+  --static-ip-address IP
+                        Specify the static IP address of the VM
+  --static-subnet-mask IP
+                        Specify the static subnet mask of the VM
   --status-port PORT    Specify the port to receive http status of encryptor.
                         Any port in range 1-65535 can be used except for port
                         81. (default: 80)
@@ -436,6 +490,7 @@ usage: brkt vmware encrypt-with-esx-host [-h] --esx-host DNS_NAME
                                          [--ovftool-path PATH]
                                          [--ovf-source-directory PATH]
                                          [--metavisor-ovf-image-name NAME]
+                                         [--metavisor-version NAME]
                                          [--console-file-name NAME]
                                          [--disk-type TYPE]
                                          [--ntp-server DNS_NAME]
@@ -476,6 +531,8 @@ optional arguments:
   --memory GB           Memory to assign to Encryptor VM (default: 32)
   --metavisor-ovf-image-name NAME
                         Metavisor OVF name (default: None)
+  --metavisor-version NAME
+                        Metavisor version [e.g 1.2.12 ] (default: latest)
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
                         specified multiple times. (default: None)
@@ -513,6 +570,7 @@ usage: brkt vmware update-with-esx-host [-h] --esx-host DNS_NAME
                                         [--ovftool-path PATH]
                                         [--ovf-source-directory PATH]
                                         [--metavisor-ovf-image-name NAME]
+                                        [--metavisor-version NAME]
                                         [--console-file-name NAME]
                                         [--disk-type TYPE]
                                         [--ntp-server DNS_NAME]
@@ -553,6 +611,8 @@ optional arguments:
   --memory GB           Memory to assign to Encryptor VM (default: 32)
   --metavisor-ovf-image-name NAME
                         Metavisor OVF name (default: None)
+  --metavisor-version NAME
+                        Metavisor version [e.g 1.2.12 ] (default: latest)
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
                         specified multiple times. (default: None)
@@ -586,6 +646,7 @@ usage: brkt vmware wrap-with-esx-host [-h] --esx-host DNS_NAME [--esx-port N]
                                       [--vm-name NAME]
                                       [--ovf-source-directory PATH]
                                       [--metavisor-ovf-image-name NAME]
+                                      [--metavisor-version NAME]
                                       [--disk-type TYPE]
                                       [--ntp-server DNS_NAME]
                                       [--proxy HOST:PORT | --proxy-config-file PATH]
@@ -616,6 +677,8 @@ optional arguments:
   --memory GB           Memory to assign to Encryptor VM (default: 32)
   --metavisor-ovf-image-name NAME
                         Metavisor OVF name (default: None)
+  --metavisor-version NAME
+                        Metavisor version [e.g 1.2.12 ] (default: latest)
   --ntp-server DNS_NAME
                         Optional NTP server to sync Metavisor clock. May be
                         specified multiple times. (default: None)

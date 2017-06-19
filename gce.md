@@ -67,7 +67,7 @@ usage: brkt gcp encrypt [-h] [--encrypted-image-name NAME] --zone ZONE
                         [--subnetwork SUBNETWORK] [--gcp-tag VALUE]
                         [--ntp-server DNS_NAME]
                         [--proxy HOST:PORT | --proxy-config-file PATH]
-                        [--status-port PORT]
+                        [--status-port PORT] [--ca-cert PATH]
                         [--token TOKEN | --brkt-tag NAME=VALUE]
                         ID
 
@@ -82,6 +82,8 @@ optional arguments:
                         claim. All characters must be alphanumeric or [-_.].
                         The tag name cannot be a JWT registered claim name
                         (see RFC 7519).
+  --ca-cert PATH        Certificate that Metavisor uses to communicate with a
+                        Customer Managed MCP.
   --encrypted-image-name NAME
                         Specify the name of the generated encrypted image
                         (default: None)
@@ -121,7 +123,7 @@ usage: brkt gcp update [-h] [--encrypted-image-name NAME] --zone ZONE
                        [--subnetwork SUBNETWORK] [--gcp-tag VALUE]
                        [--ntp-server DNS_NAME]
                        [--proxy HOST:PORT | --proxy-config-file PATH]
-                       [--status-port PORT]
+                       [--status-port PORT] [--ca-cert PATH]
                        [--token TOKEN | --brkt-tag NAME=VALUE]
                        ID
 
@@ -136,6 +138,8 @@ optional arguments:
                         claim. All characters must be alphanumeric or [-_.].
                         The tag name cannot be a JWT registered claim name
                         (see RFC 7519).
+  --ca-cert PATH        Certificate that Metavisor uses to communicate with a
+                        Customer Managed MCP.
   --encrypted-image-name NAME
                         Specify the name of the generated encrypted Image
                         (default: None)
@@ -174,7 +178,8 @@ usage: brkt gcp launch [-h] [--instance-name NAME]
                        [--subnetwork NAME] [--ssd-scracth-disks N]
                        [--ntp-server DNS_NAME]
                        [--proxy HOST:PORT | --proxy-config-file PATH]
-                       [--token TOKEN]
+                       [--ca-cert PATH]
+                       [--token TOKEN | --brkt-tag NAME=VALUE]
                        ID
 
 Launch a GCP image
@@ -183,6 +188,13 @@ positional arguments:
   ID                    The image that will be launched
 
 optional arguments:
+  --brkt-tag NAME=VALUE
+                        Bracket tag which will be embedded in the JWT as a
+                        claim. All characters must be alphanumeric or [-_.].
+                        The tag name cannot be a JWT registered claim name
+                        (see RFC 7519).
+  --ca-cert PATH        Certificate that Metavisor uses to communicate with a
+                        Customer Managed MCP.
   --gcp-tag             Set a GCP tag on the encrypted instance being
                         launched. May be specified multiple times.
   --instance-name NAME  Name of the instance
@@ -224,6 +236,7 @@ usage: brkt gcp launch [-h] [--instance-name NAME]
                        [--ssd-scracth-disks N]
                        [--ntp-server DNS_NAME]
                        [--proxy HOST:PORT | --proxy-config-file PATH]
+                       [--ca-cert PATH]
                        [--token TOKEN | --brkt-tag NAME=VALUE]
                        ID
 
@@ -239,6 +252,8 @@ optional arguments:
                         claim. All characters must be alphanumeric or [-_.]
                         The tag name cannot be a JWT registered claim name
                         (see RFC 7519).
+  --ca-cert PATH        Certificate that Metavisor uses to communicate with a
+                        Customer Managed MCP.
   --gcp-tag             Set a GCP tag on the encrypted instance being
                         launched. May be specified multiple times.
   --image-project NAME  GCP project name which owns the image (e.g. centos-
