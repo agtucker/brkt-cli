@@ -15,11 +15,8 @@
 import unittest
 from brkt_cli.validation import ValidationError
 from brkt_cli.aws import share_logs
-import boto
-from boto.ec2.instance import Instance
-from boto.ec2.snapshot import Snapshot
-from boto.ec2.blockdevicemapping import BlockDeviceMapping
-from boto.ec2.volume import Volume
+from brkt_cli.aws.model import BlockDeviceMapping, Instance, Snapshot, Volume
+from boto.exception import S3ResponseError
 
 
 class CurrentValue():
@@ -36,7 +33,7 @@ class S3():
 
     def get_bucket(self, bucket):
         if self.bucket.region == 'un-matching-region':
-            raise boto.exception.S3ResponseError(400, 'reason', 'body')
+            raise S3ResponseError(400, 'reason', 'body')
         return self.bucket
 
 class Bucket():

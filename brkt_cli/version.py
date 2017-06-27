@@ -24,7 +24,7 @@ import iso8601
 
 log = logging.getLogger(__name__)
 
-VERSION = '1.0.10pre1'
+VERSION = '1.0.11pre1'
 
 
 def _is_version_supported(version, supported_versions):

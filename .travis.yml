@@ -1,7 +1,7 @@
 language: python
 python: "2.7"
-install:
-  - pip install -r requirements.txt
-  - pip install pyflakes
+install: >-
+  pip install boto boto3 google-api-python-client iso8601 oauthlib
+  pyjwt pyvmomi PyYAML pyflakes requests
 script: ./test-travis
 cache: pip

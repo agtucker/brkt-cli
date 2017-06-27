@@ -15,21 +15,25 @@ import ssl
 import unittest
 import uuid
 
-from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
-from boto.ec2.image import Image
-from boto.ec2.instance import Instance, ConsoleOutput
-from boto.ec2.keypair import KeyPair
-from boto.ec2.securitygroup import SecurityGroup
-from boto.ec2.snapshot import Snapshot
-from boto.ec2.volume import Volume
 from boto.exception import EC2ResponseError
-from boto.regioninfo import RegionInfo
-from boto.vpc import VPC
 
 import brkt_cli
 import brkt_cli.aws
 import brkt_cli.util
 from brkt_cli.aws import aws_service
+from brkt_cli.aws.model import (
+    BlockDeviceType,
+    BlockDeviceMapping,
+    ConsoleOutput,
+    Image,
+    Instance,
+    KeyPair,
+    RegionInfo,
+    SecurityGroup,
+    Snapshot,
+    Volume,
+    VPC
+)
 from brkt_cli.validation import ValidationError
 
 CONSOLE_OUTPUT_TEXT = 'Starting up.\nAll systems go!\n'

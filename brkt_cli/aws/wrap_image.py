@@ -142,6 +142,15 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
     bdm['/dev/sdf'] = guest_unencrypted_root
     # Clean up the Metavisor root volume on termination
     bdm['/dev/sda1'] = EBSBlockDeviceType(delete_on_termination=True)
+    # Copy over the guest BlockDeviceMaping for ephemeral drives
+    guest_bdm = guest_image.block_device_mapping
+    for key in guest_bdm.keys():
+        guest_vol = guest_bdm[key]
+        if guest_vol.ephemeral_name:
+            log.info('Propagating block device mapping for %s at %s' %
+                     (guest_vol.ephemeral_name, key))
+            bdm[key] = guest_vol
+
     if instance_config is None:
         instance_config = InstanceConfig()
     instance_config.brkt_config['allow_unencrypted_guest'] = True

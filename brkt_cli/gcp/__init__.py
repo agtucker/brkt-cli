@@ -13,7 +13,6 @@ from brkt_cli.instance_config_args import (
     instance_config_from_values,
     setup_instance_config_args
 )
-from brkt_cli.game.gamify_decorator import gamify
 from brkt_cli.gcp import (
     encrypt_gcp_image,
     encrypt_gcp_image_args,
@@ -31,7 +30,6 @@ from brkt_cli.validation import ValidationError
 log = logging.getLogger(__name__)
 
 
-@gamify
 def run_encrypt(values, config):
     session_id = util.make_nonce()
     gcp_svc = gcp_service.GCPService(values.project, session_id, log)
@@ -87,7 +85,6 @@ def run_encrypt(values, config):
     return 0
 
 
-@gamify
 def run_update(values, config):
     session_id = util.make_nonce()
     gcp_svc = gcp_service.GCPService(values.project, session_id, log)
@@ -187,7 +184,6 @@ def run_launch(values, config):
     return 0
 
 
-@gamify
 def run_wrap_image(values, config):
     session_id = util.make_nonce()
     gcp_svc = gcp_service.GCPService(values.project, session_id, log)

@@ -37,7 +37,6 @@ from brkt_cli.aws.aws_constants import (
     TAG_ENCRYPTOR, TAG_ENCRYPTOR_SESSION_ID, TAG_ENCRYPTOR_AMI
 )
 from brkt_cli.aws.update_ami import update_ami
-from brkt_cli.game.gamify_decorator import gamify
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
     INSTANCE_UPDATER_MODE,
@@ -93,6 +92,12 @@ def _handle_aws_errors(func):
                     'Unauthorized operation.  Check the IAM policy for your '
                     'AWS account.'
                 )
+            elif e.error_code == 'OptInRequired':
+                log.debug('', exc_info=1)
+                log.error(e.error_message)
+                log.error(
+                    'Opt in required for the AMI. Go to the marketplace and subscribe to the AMI.'
+                )
             else:
                 raise
         return 1
@@ -143,7 +148,7 @@ def run_share_logs(values):
     )
     return 0
 
-@gamify
+
 @_handle_aws_errors
 def run_wrap_image(values, config):
     nonce = util.make_nonce()
@@ -199,7 +204,49 @@ def run_wrap_image(values, config):
     print(instance_id)
     return 0
 
-@gamify
+
+# Get the AMI ID if the CLI is passed "ubuntu" instead of an AMI. This function grabs the official, non-AWS Marketplace
+# version of the AMI from an API endpoint
+def get_ubuntu_ami_id(stock_image_version, region):
+    if not stock_image_version:
+        stock_image_version = '16.04'
+    resp = urllib2.urlopen("https://cloud-images.ubuntu.com/locator/ec2/releasesTable")
+    resp_str = resp.read()
+    resp.close()
+    # This API endpoint returns faulty JSON with a trailing comma. This regex removes this trailing comma
+    resp_str = re.sub(",[ \t\r\n]+}", "}", resp_str)
+    resp_str = re.sub(",[ \t\r\n]+\]", "]", resp_str)
+    ami_data = json.loads(resp_str)['aaData']
+    ubuntu_ami = ''
+    for ami in ami_data:
+        if ami[0] == region and ami[2].startswith(stock_image_version) and ami[4] == 'hvm:ebs-ssd':
+            # The API endpoint returns an HTML tag with the AMI ID in it. This regex just gets the AMI ID
+            match_obj = re.match('^<.+>(ami-.+)</.+>$', ami[6])
+            ubuntu_ami = match_obj.group(1)
+    if not ubuntu_ami:
+        raise ValidationError(
+            'Could not find Ubuntu AMI version %s.' % stock_image_version)
+    return ubuntu_ami
+
+
+# Get the AMI ID if the CLI is passed "centos" instead of an AMI. This function grabs the official, AWS Marketplace
+# version of the AMI. You need to have previously subscribed to the AMI in order for this to work
+def get_centos_ami_id(stock_image_version, aws_svc):
+    if not stock_image_version:
+        stock_image_version = '7'
+    if stock_image_version == '6':
+        prod_code = '6x5jmcajty9edm3f211pqjfn2'
+    elif stock_image_version == '7':
+        prod_code = 'aw0evgkw8e5c1q413zgy5pjce'
+    else:
+        raise ValidationError('CentOS version must be 6 or 7.')
+    images = aws_svc.get_images(filters={'product-code': prod_code})
+    if len(images) == 0:
+        raise ValidationError(
+            'Unable to find AMI for CentOS %s.' % stock_image_version)
+    return images[-1].id
+
+
 @_handle_aws_errors
 def run_encrypt(values, config, verbose=False):
     session_id = util.make_nonce()
@@ -219,10 +266,17 @@ def run_encrypt(values, config, verbose=False):
 
     aws_svc.connect(values.region, key_name=values.key_name)
 
+    # Keywords check
+    guest_ami_id = values.ami
+    if values.ami == 'ubuntu':
+        guest_ami_id = get_ubuntu_ami_id(values.stock_image_version, values.region)
+    elif values.ami == 'centos':
+        guest_ami_id = get_centos_ami_id(values.stock_image_version, aws_svc)
+
     if values.validate:
-        guest_image = _validate_guest_ami(aws_svc, values.ami)
+        guest_image = _validate_guest_ami(aws_svc, guest_ami_id)
     else:
-        guest_image = _validate_ami(aws_svc, values.ami)
+        guest_image = _validate_ami(aws_svc, guest_ami_id)
     encryptor_ami = values.encryptor_ami or _get_encryptor_ami(values.region,
                                                     values.metavisor_version)
     aws_tags = encrypt_ami.get_default_tags(session_id, encryptor_ami)
@@ -294,7 +348,6 @@ def run_encrypt(values, config, verbose=False):
     return 0
 
 
-@gamify
 @_handle_aws_errors
 def run_update(values, config, verbose=False):
     nonce = util.make_nonce()

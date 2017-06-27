@@ -18,12 +18,21 @@ import logging
 
 log = logging.getLogger(__name__)
 
+EC384_KEY_LEN_BYTES = 48
 
-def _long_to_byte_array(long_int):
+# If the length of the bytearray created is less than 48, pad it with leading
+# zeros. EC384 are 384bits i.e. 48byte keys. so both x and y need to be 48bytes
+# with leading zeros wherever required
+
+
+def _long_to_byte_array(long_int, pad_to_len=EC384_KEY_LEN_BYTES):
     bys = bytearray()
     while long_int:
         long_int, r = divmod(long_int, 256)
         bys.insert(0, r)
+    if len(bys) < pad_to_len:
+        # pad with leading zeros
+        bys = bytearray(pad_to_len - len(bys)) + bys
     return bys
 
 

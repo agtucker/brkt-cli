@@ -26,7 +26,6 @@ from brkt_cli import (
     instance_config_args,
     util
 )
-from brkt_cli.game.gamify_decorator import gamify
 from brkt_cli.instance_config import (
     INSTANCE_CREATOR_MODE,
     INSTANCE_UPDATER_MODE,
@@ -75,7 +74,7 @@ def _get_vcenter_password(use_esx):
             vcenter_password = getpass.getpass('Enter vCenter password:')
     return vcenter_password
 
-@gamify
+
 def run_encrypt(values, parsed_config, log, use_esx=False):
     session_id = util.make_nonce()
     if values.create_ovf or values.create_ova:
@@ -258,7 +257,6 @@ def run_encrypt(values, parsed_config, log, use_esx=False):
         return 1
 
 
-@gamify
 def run_update(values, parsed_config, log, use_esx=False):
     session_id = util.make_nonce()
     encrypted_ovf_name = None
@@ -425,7 +423,6 @@ def run_update(values, parsed_config, log, use_esx=False):
         return 1
 
 
-@gamify
 def run_wrap_image(values, parsed_config, log, use_esx=False):
     session_id = util.make_nonce()
 

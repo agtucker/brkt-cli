@@ -45,17 +45,16 @@ EBS_OPTIMIZED_INSTANCES = ['c1.xlarge', 'c3.xlarge', 'c3.2xlarge',
                            'c4.2xlarge', 'c4.4xlarge', 'c4.8xlarge',
                            'd2.xlarge', 'd2.4xlarge', 'd2.8xlarge',
                            'g2.2xlarge', 'i2.xlarge', 'i2.2xlarge',
-                           'i2.4xlarge', 'i2.8xlarge', 'i3.16xlarge',
-                           'm1.large', 'm1.xlarge', 'm1.2xlarge',
-                           'm1.4xlarge', 'm2.2xlarge', 'm2.4xlarge',
-                           'm3.xlarge', 'm3.2xlarge', 'm4.large',
-                           'm4.xlarge', 'm4.2xlarge', 'm4.4xlarge',
-                           'm4.10xlarge', 'm4.16xlarge', 'p2.xlarge',
-                           'p2.8xlarge', 'p2.16xlarge', 'r3.xlarge',
-                           'r3.2xlarge', 'r3.4large', 'r4.large',
-                           'r4.xlarge', 'r4.2xlarge', 'r4.4xlarge',
-                           'r4.8xlarge', 'r4.16xlarge', 'x1.16xlarge',
-                           'x1.32xlarge']
+                           'i2.4xlarge', 'i3.16xlarge', 'm1.large',
+                           'm1.xlarge', 'm1.2xlarge', 'm1.4xlarge',
+                           'm2.2xlarge', 'm2.4xlarge', 'm3.xlarge',
+                           'm3.2xlarge', 'm4.large', 'm4.xlarge',
+                           'm4.2xlarge', 'm4.4xlarge', 'm4.10xlarge',
+                           'm4.16xlarge', 'p2.xlarge', 'p2.8xlarge',
+                           'p2.16xlarge', 'r3.xlarge', 'r3.2xlarge',
+                           'r3.4large', 'r4.large', 'r4.xlarge',
+                           'r4.2xlarge', 'r4.4xlarge', 'r4.8xlarge',
+                           'r4.16xlarge', 'x1.16xlarge', 'x1.32xlarge']
 
 
 class BaseAWSService(object):
@@ -288,17 +287,6 @@ class AWSService(BaseAWSService):
         self.region = region
         self.key_name = key_name
         self.conn = boto.vpc.connect_to_region(region)
-
-    def connect_as(self, role, region, session_name):
-        sts_conn = boto.sts.connect_to_region(region)
-        creds = sts_conn.assume_role(role, session_name)
-        conn = boto.vpc.connect_to_region(
-            region,
-            aws_access_key_id=creds.credentials.access_key,
-            aws_secret_access_key=creds.credentials.secret_key,
-            security_token=creds.credentials.session_token)
-        self.region = region
-        self.conn = conn
 
     def retry(self, function, error_code_regexp=None, timeout=None):
         """ Call the retry_boto function with this object's timeout and

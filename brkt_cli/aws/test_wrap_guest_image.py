@@ -16,12 +16,11 @@ import json
 import unittest
 import zlib
 
-from boto.vpc import Subnet
-
 import brkt_cli
 import brkt_cli.aws
 import brkt_cli.util
 from brkt_cli.aws import wrap_image
+from brkt_cli.aws.model import Subnet
 from brkt_cli.aws.test_aws_service import build_aws_service
 from brkt_cli.instance_config import (
     BRKT_CONFIG_CONTENT_TYPE,

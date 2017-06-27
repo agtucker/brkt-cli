@@ -52,7 +52,6 @@ setup(
         'brkt_cli.config',
         'brkt_cli.crypto',
         'brkt_cli.esx',
-        'brkt_cli.game',
         'brkt_cli.gcp',
         'brkt_cli.get_public_key',
         'brkt_cli.make_key',

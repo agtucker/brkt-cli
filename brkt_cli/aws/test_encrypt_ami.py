@@ -17,9 +17,7 @@ import os
 import unittest
 import zlib
 
-from boto.ec2.volume import Volume
 from boto.exception import EC2ResponseError
-from boto.vpc import Subnet
 
 import brkt_cli
 import brkt_cli.aws
@@ -29,6 +27,7 @@ from brkt_cli.aws import (
     aws_service, encrypt_ami, update_ami, test_aws_service
 )
 from brkt_cli.aws.aws_constants import TAG_ENCRYPTOR_SESSION_ID
+from brkt_cli.aws.model import Subnet, Volume
 from brkt_cli.aws.test_aws_service import build_aws_service
 from brkt_cli.instance_config import (
     BRKT_CONFIG_CONTENT_TYPE,

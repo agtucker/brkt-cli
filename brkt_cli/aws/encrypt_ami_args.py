@@ -24,7 +24,13 @@ def setup_encrypt_ami_args(parser, parsed_config):
     parser.add_argument(
         'ami',
         metavar='ID',
-        help='The guest AMI that will be encrypted'
+        help='The guest AMI that will be encrypted. This can be the AMI ID, "ubuntu", or "centos".'
+    )
+    parser.add_argument(
+        '--stock-image-version',
+        metavar='STOCK_IMAGE_VERSION',
+        help='The version number when specifying "ubuntu" or "centos" instead of an AMI ID. The default versions are '
+             'Ubuntu 16.04 and CentOS 7.'
     )
     parser.add_argument(
         '--encrypted-ami-name',

@@ -111,8 +111,12 @@ class TestJWK(unittest.TestCase):
 
     def test_long_to_byte_array(self):
         l = long('deadbeef', 16)
-        ba = brkt_jwt.jwk._long_to_byte_array(l)
+        ba = brkt_jwt.jwk._long_to_byte_array(l, pad_to_len=4)
         self.assertEqual(bytearray.fromhex('deadbeef'), ba)
+        ba = brkt_jwt.jwk._long_to_byte_array(l, pad_to_len=50)
+        self.assertEqual(bytearray(46) + bytearray.fromhex('deadbeef'), ba)
+        ba = brkt_jwt.jwk._long_to_byte_array(l)
+        self.assertEqual(bytearray(44) + bytearray.fromhex('deadbeef'), ba)
 
 
 class TestNameValueToDict(unittest.TestCase):

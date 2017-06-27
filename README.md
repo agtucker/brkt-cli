@@ -11,7 +11,7 @@ the encryption process.
 and generating a JSON Web Token (JWT) that is used to authenticate with
 The Bracket Computing service.
 
-The latest release of **brkt-cli** is [1.0.9](https://github.com/brkt/brkt-cli/releases/tag/brkt-cli-1.0.9).
+The latest release of **brkt-cli** is [1.0.10](https://github.com/brkt/brkt-cli/releases/tag/v1.0.10).
 
 ## Requirements
 
@@ -82,9 +82,10 @@ and avoids issues with Python libraries and platform-specific
 binaries.  To download the **brkt-cli** source and build the `brkt` container:
 
 ```
-$ wget https://github.com/brkt/brkt-cli/archive/brkt-cli-<RELEASE-NUMBER>.zip
-$ unzip brkt-cli-<RELEASE-NUMBER>.zip
-$ cd brkt-cli-brkt-cli-<RELEASE-NUMBER>
+$ export BRKT_API_RELEASE=1.0.10
+$ wget https://github.com/brkt/brkt-cli/archive/v$BRKT_API_RELEASE.zip
+$ unzip v$BRKT_API_RELEASE.zip
+$ cd brkt-cli-$BRKT_API_RELEASE
 $ docker build -t brkt .
 ```
 

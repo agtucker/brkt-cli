@@ -13,10 +13,6 @@
 # limitations under the License.
 import unittest
 
-from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
-from boto.ec2.image import Image
-from boto.vpc import Subnet
-
 import brkt_cli
 import brkt_cli.aws
 from brkt_cli.aws.aws_constants import (
@@ -25,6 +21,12 @@ from brkt_cli.aws.aws_constants import (
 import brkt_cli.util
 from brkt_cli.aws import test_aws_service
 from brkt_cli.aws.test_aws_service import build_aws_service, new_id
+from brkt_cli.aws.model import (
+    BlockDeviceMapping,
+    BlockDeviceType,
+    Image,
+    Subnet
+)
 from brkt_cli.util import CRYPTO_GCM
 from brkt_cli.validation import ValidationError
 
