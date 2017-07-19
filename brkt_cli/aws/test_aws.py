@@ -15,18 +15,16 @@ import unittest
 
 import brkt_cli
 import brkt_cli.aws
+import brkt_cli.util
+from brkt_cli.aws import test_aws_service, boto3_device, boto3_tag
 from brkt_cli.aws.aws_constants import (
     TAG_ENCRYPTOR, TAG_ENCRYPTOR_AMI, TAG_ENCRYPTOR_SESSION_ID
 )
-import brkt_cli.util
-from brkt_cli.aws import test_aws_service
-from brkt_cli.aws.test_aws_service import build_aws_service, new_id
 from brkt_cli.aws.model import (
-    BlockDeviceMapping,
-    BlockDeviceType,
     Image,
     Subnet
 )
+from brkt_cli.aws.test_aws_service import build_aws_service, new_id
 from brkt_cli.util import CRYPTO_GCM
 from brkt_cli.validation import ValidationError
 
@@ -124,15 +122,14 @@ class TestValidation(unittest.TestCase):
         aws_svc = test_aws_service.DummyAWSService()
 
         # Register guest image
-        bdm = BlockDeviceMapping()
-        bdm['/dev/sda1'] = BlockDeviceType()
+        dev = boto3_device.make_device('/dev/sda1')
         id = aws_svc.register_image(
-            name='Guest image', block_device_map=bdm)
+            name='Guest image', block_device_mappings=[dev])
         guest_image = aws_svc.get_image(id)
 
         # Make the guest image look like it was already encrypted and
         # make sure that validation fails.
-        guest_image.tags[TAG_ENCRYPTOR] = 'ami-' + new_id()
+        aws_svc.create_tags(guest_image.id)
         with self.assertRaises(ValidationError):
             brkt_cli.aws._validate_guest_ami(aws_svc, id)
 
@@ -143,8 +140,8 @@ class TestValidation(unittest.TestCase):
         image.id = new_id()
         old_encryptor_id = new_id()
         new_encryptor_id = new_id()
-        image.tags[TAG_ENCRYPTOR] = 'True'
-        image.tags[TAG_ENCRYPTOR_AMI] = old_encryptor_id
+        boto3_tag.set_value(image.tags, TAG_ENCRYPTOR, 'True')
+        boto3_tag.set_value(image.tags, TAG_ENCRYPTOR_AMI, old_encryptor_id)
 
         aws_svc = test_aws_service.DummyAWSService()
         aws_svc.images[image.id] = image
@@ -155,7 +152,7 @@ class TestValidation(unittest.TestCase):
                 aws_svc, image.id, new_encryptor_id)
 
         # No missing tag.
-        image.tags[TAG_ENCRYPTOR_SESSION_ID] = new_id()
+        boto3_tag.set_value(image.tags, TAG_ENCRYPTOR_SESSION_ID, new_id())
         result = brkt_cli.aws._validate_guest_encrypted_ami(
             aws_svc, image.id, new_encryptor_id)
         self.assertEquals(image, result)

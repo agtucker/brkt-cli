@@ -1103,15 +1103,26 @@ class VCenterService(BaseVCenterService):
         # Load the OVF file
         spec_params = vim.OvfManager.CreateImportSpecParams()
         ovfd = self.get_ovf_descriptor(ovf_path)
-        if self.is_esx_host():
-            # Remove property section
-            e = xml.etree.ElementTree.fromstring(ovfd)
-            for child in e:
-                if "VirtualSystem" in child.tag:
-                    for child_2 in child:
+        e = xml.etree.ElementTree.fromstring(ovfd)
+        for child in e:
+            if "VirtualSystem" in child.tag:
+                for child_2 in child:
+                    if self.is_esx_host():
+                        # Remove property section
                         if "ProductSection" in child_2.tag:
                             child.remove(child_2)
-            ovfd = xml.etree.ElementTree.tostring(e)
+                    # Remove the network interface
+                    if "VirtualHardwareSection" in child_2.tag:
+                        for child_3 in child_2:
+                            found = False
+                            if "Item" in child_3.tag:
+                                for child_4 in child_3:
+                                    if "ElementName" in child_4.tag:
+                                        if "Network adapter" in child_4.text:
+                                            found = True
+                            if found:
+                                child_2.remove(child_3)
+        ovfd = xml.etree.ElementTree.tostring(e)
         datacenter = self.__get_obj(content, [vim.Datacenter],
                                     self.datacenter_name)
         datastore = self.__get_obj(content, [vim.Datastore],
@@ -1127,35 +1138,41 @@ class VCenterService(BaseVCenterService):
         timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
         if vm_name is None:
             vm_name = "Encryptor-VM-" + timestamp
+        if import_spec.importSpec is None or \
+           import_spec.importSpec.configSpec is None:
+           log.error("Import specification error %s warning %s",
+                      import_spec.error, import_spec.warning)
+           raise Exception("Cannot import OVF specification")
         import_spec.importSpec.configSpec.name = vm_name
-        if (self.nic_type == "VirtualPort"):
+        n_intf = vim.vm.device.VirtualVmxnet3()
+        n_intf.key = -1
+        n_intf.backing = vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
+        if (self.nic_type == "DistributedVirtualPort"):
             pg_obj = self.__get_obj(content,
                                     [vim.dvs.DistributedVirtualPort],
                                     self.network_name)
             port_connection = vim.dvs.PortConnection()
             port_connection.portKey = pg_obj.key
             port_connection.switchUuid = pg_obj.dvsUuid
-            for device in import_spec.importSpec.configSpec.deviceChange:
-                if (isinstance(device.device, vim.vm.device.VirtualVmxnet3)):
-                    device.device.backing = \
-                        vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
-                    device.device.backing.port = port_connection
-        elif (self.nic_type == "VirtualPortGroup"):
+            n_intf.backing = \
+                vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
+            n_intf.backing.port = port_connection
+        elif (self.nic_type == "DistributedVirtualPortGroup"):
             pg_obj = self.__get_obj(content,
                                     [vim.dvs.DistributedVirtualPortgroup],
                                     self.network_name)
             port_connection = vim.dvs.PortConnection()
             port_connection.portgroupKey = pg_obj.key
             port_connection.switchUuid = pg_obj.config.distributedVirtualSwitch.uuid
-            for device in import_spec.importSpec.configSpec.deviceChange:
-                if (isinstance(device.device, vim.vm.device.VirtualVmxnet3)):
-                    device.device.backing = \
-                        vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
-                    device.device.backing.port = port_connection
+            n_intf.backing = \
+                vim.vm.device.VirtualEthernetCard.DistributedVirtualPortBackingInfo()
+            n_intf.backing.port = port_connection
         else:
-            for device in import_spec.importSpec.configSpec.deviceChange:
-                if (isinstance(device.device, vim.vm.device.VirtualVmxnet3)):
-                    device.device.backing.deviceName = self.network_name
+            n_intf.backing.deviceName = self.network_name
+        nw_spec = vim.vm.device.VirtualDeviceSpec()
+        nw_spec.operation = vim.vm.device.VirtualDeviceSpec.Operation.add
+        nw_spec.device = n_intf
+        import_spec.importSpec.configSpec.deviceChange.append(nw_spec)
         lease = resource_pool.ImportVApp(import_spec.importSpec, destfolder)
         self.upload_ovf_complete = False
         while (True):

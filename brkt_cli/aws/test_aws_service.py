@@ -11,19 +11,18 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import ssl
 import unittest
 import uuid
 
-from boto.exception import EC2ResponseError
+from botocore.exceptions import ClientError
 
 import brkt_cli
 import brkt_cli.aws
 import brkt_cli.util
-from brkt_cli.aws import aws_service
+from brkt_cli.aws import aws_service, boto3_device, boto3_tag, encrypt_ami
 from brkt_cli.aws.model import (
-    BlockDeviceType,
-    BlockDeviceMapping,
     ConsoleOutput,
     Image,
     Instance,
@@ -38,9 +37,16 @@ from brkt_cli.validation import ValidationError
 
 CONSOLE_OUTPUT_TEXT = 'Starting up.\nAll systems go!\n'
 
+log = logging.getLogger(__name__)
+
 
 def new_id():
     return uuid.uuid4().hex[:6]
+
+
+def new_client_error(code=None, message=None):
+    response = {'Error': {'Code': code, 'Message': message}}
+    return ClientError(response, 'test')
 
 
 class TestException(Exception):
@@ -99,6 +105,9 @@ class DummyAWSService(aws_service.BaseAWSService):
         self.terminate_instance_callback = None
         self.delete_security_group_callback = None
 
+        self.default_tags = encrypt_ami.get_default_tags(
+            new_id(), 'ami-' + new_id())
+
     def get_regions(self):
         return self.regions
 
@@ -110,32 +119,35 @@ class DummyAWSService(aws_service.BaseAWSService):
                      security_group_ids=None,
                      instance_type='c4.xlarge',
                      placement=None,
-                     block_device_map=None,
+                     block_device_mappings=None,
                      subnet_id=None,
                      user_data=None,
                      ebs_optimized=True,
                      instance_profile_name=None):
         instance = Instance()
-        instance.id = new_id()
+        instance.id = 'i-' + new_id()
         instance.image_id = image_id
         instance.root_device_name = '/dev/sda1'
-        instance._state.code = 0
-        instance._state.name = 'pending'
+        instance.state['Name'] = 'pending'
+        instance.state['Code'] = 0
 
         # Create volumes based on block device data from the image.
         image = self.get_image(image_id)
-        instance_bdm = BlockDeviceMapping()
-        for device_name, bdm in image.block_device_mapping.iteritems():
+        device_names = boto3_device.get_device_names(
+            image.block_device_mappings)
+        instance_bdms = list()
+        for device_name in device_names:
             # Create a new volume and attach it to the instance.
             volume = Volume()
             volume.size = 8
-            volume.id = new_id()
+            volume.id = 'vol-' + new_id()
             self.volumes[volume.id] = volume
 
-            bdt = BlockDeviceType(volume_id=volume.id, size=8)
-            instance_bdm[device_name] = bdt
+            instance_dev = boto3_device.make_device(
+                device_name=device_name, volume_id=volume.id, volume_size=8)
+            instance_bdms.append(instance_dev)
 
-        instance.block_device_mapping = instance_bdm
+        instance.block_device_mappings = instance_bdms
         self.instances[instance.id] = instance
 
         if self.run_instance_callback:
@@ -158,11 +170,12 @@ class DummyAWSService(aws_service.BaseAWSService):
             self.get_instance_callback(instance)
 
         # Transition from pending to running on subsequent calls.
-        if instance.state == 'pending':
+        state = instance.state
+        if state['Name'] == 'pending':
             if self.transition_to_running.get(instance_id):
                 # We returned pending last time.  Transition to running.
-                instance._state.code = 16
-                instance._state.name = 'running'
+                state['Code'] = 16
+                state['Name'] = 'running'
                 del(self.transition_to_running[instance_id])
             else:
                 # Transition to running next time.
@@ -172,6 +185,18 @@ class DummyAWSService(aws_service.BaseAWSService):
     def create_tags(self, resource_id, name=None, description=None):
         if self.create_tags_callback:
             self.create_tags_callback(resource_id, name, description)
+
+        for resources in (
+            self.instances, self.images, self.snapshots, self.volumes
+        ):
+            if resource_id in resources:
+                r = resources[resource_id]
+                for key, value in self.default_tags.iteritems():
+                    boto3_tag.set_value(r.tags, key, value)
+                if name:
+                    boto3_tag.set_value(r.tags, 'Name', name)
+                if description:
+                    boto3_tag.set_value(r.tags, 'Description', description)
         pass
 
     def stop_instance(self, instance_id):
@@ -179,8 +204,8 @@ class DummyAWSService(aws_service.BaseAWSService):
         if self.stop_instance_callback:
             self.stop_instance_callback(instance)
 
-        instance._state.code = 80
-        instance._state.name = 'stopped'
+        instance.state['Code'] = 80
+        instance.state['Name'] = 'stopped'
         return instance
 
     def terminate_instance(self, instance_id):
@@ -188,11 +213,8 @@ class DummyAWSService(aws_service.BaseAWSService):
             self.terminate_instance_callback(instance_id)
 
         instance = self.instances[instance_id]
-        if self.terminate_instance_callback:
-            self.terminate_instance_callback(instance)
-
-        instance._state.code = 48
-        instance._state.name = 'terminated'
+        instance.state['Code'] = 48
+        instance.state['Name'] = 'terminated'
         return instance
 
     def get_volume(self, volume_id):
@@ -214,10 +236,10 @@ class DummyAWSService(aws_service.BaseAWSService):
         snapshot = self.snapshots[snapshot_id]
 
         # Transition from pending to completed on subsequent calls.
-        if snapshot.status == 'pending':
+        if snapshot.state == 'pending':
             if self.transition_to_completed.get(snapshot_id):
                 # We returned pending last time.  Transition to completed.
-                snapshot.status = 'completed'
+                snapshot.state = 'completed'
                 del(self.transition_to_completed[snapshot_id])
             else:
                 # Transition to completed next time.
@@ -230,8 +252,8 @@ class DummyAWSService(aws_service.BaseAWSService):
 
     def create_snapshot(self, volume_id, name=None, description=None):
         snapshot = Snapshot()
-        snapshot.id = new_id()
-        snapshot.status = 'pending'
+        snapshot.id = 'snap-' + new_id()
+        snapshot.state = 'pending'
         self.snapshots[snapshot.id] = snapshot
 
         if self.create_snapshot_callback:
@@ -239,51 +261,84 @@ class DummyAWSService(aws_service.BaseAWSService):
 
         return snapshot
 
-    def attach_volume(self, vol_id, instance_id, device):
+    def attach_volume(self, vol_id, instance_id, device_name):
+        log.info('Attaching %s to %s at %s', vol_id, instance_id, device_name)
+
         instance = self.get_instance(instance_id)
-        bdt = BlockDeviceType(volume_id=vol_id, size=8)
-        instance.block_device_mapping[device] = bdt
+        if device_name in [
+                d['DeviceName'] for d in instance.block_device_mappings]:
+            raise Exception(device_name + ' is in use for ' + instance_id)
+
+        device = boto3_device.make_device(
+            device_name, volume_id=vol_id, volume_size=8)
+
+        # Replace the BDM entry.
+        instance.block_device_mappings.append(device)
         return True
 
-    def create_image(self, instance_id, name, **kwargs):
+    def create_image(self,
+                     instance_id,
+                     name,
+                     description=None,
+                     no_reboot=True,
+                     block_device_mappings=None):
         image = Image()
-        image.id = instance_id
-        image.block_device_mapping = kwargs['block_device_mapping']
+        image.id = 'ami-' + new_id()
+        bdm = block_device_mappings or list()
         image.state = 'available'
         image.name = name
         image.description = 'This is a test'
         image.virtualization_type = 'hvm'
         image.root_device_name = '/dev/sda1'
-        i = self.get_instance(instance_id)
-        rdn = image.root_device_name
-        # create_image creates this implicitly
-        image.block_device_mapping[rdn] = i.block_device_mapping[rdn]
+
+        # If device mappings weren't specified, copy them from the instance.
+        instance = self.get_instance(instance_id)
+        if not bdm:
+            for instance_dev in instance.block_device_mappings:
+                image_dev = boto3_device.make_device_for_image(instance_dev)
+                bdm.append(image_dev)
+
+        # Create snapshots for volumes that are attached to the instance.
+        for device in bdm:
+            if 'SnapshotId' not in device['Ebs']:
+                snapshot = Snapshot()
+                snapshot.id = 'snap-' + new_id()
+                self.snapshots[snapshot.id] = snapshot
+                device['Ebs']['SnapshotId'] = snapshot.id
+
+        image.block_device_mappings = bdm
+
         self.images[image.id] = image
-        return image.id
+        return image
 
     def create_volume(self, size, zone, **kwargs):
         volume = Volume()
         volume.id = 'vol-' + new_id()
         volume.size = size
         volume.zone = zone
-        volume.status = 'available'
+        volume.state = 'available'
         self.volumes[volume.id] = volume
         return volume
 
-    def detach_volume(self, vol_id, **kwargs):
-        self.volumes[vol_id].status = 'available'
+    def detach_volume(self, vol_id, instance_id=None, force=True):
+        log.info('Detaching %s from %s', vol_id, instance_id)
+        self.volumes[vol_id].state = 'available'
+        instance = self.get_instance(instance_id)
+        updated_bdm = [d for d in instance.block_device_mappings
+                       if d['Ebs']['VolumeId'] != vol_id]
+        instance.block_device_mappings = updated_bdm
         return True
 
     def delete_volume(self, volume_id):
         del(self.volumes[volume_id])
 
     def register_image(self,
-                       block_device_map,
+                       block_device_mappings,
                        name=None,
                        description=None):
         image = Image()
         image.id = 'ami-' + new_id()
-        image.block_device_mapping = block_device_map
+        image.block_device_mappings = block_device_mappings
         image.state = 'available'
         image.name = name
         image.description = description
@@ -302,13 +357,11 @@ class DummyAWSService(aws_service.BaseAWSService):
         if image:
             return image
         else:
-            e = EC2ResponseError(None, None)
-            e.error_code = 'InvalidAMIID.NotFound'
+            e = new_client_error('InvalidAMIID.NotFound')
             raise e
 
-    def get_images(self, filters=None, owners=None):
+    def get_images(self, name=None, owner_alias=None, product_code=None):
         # Only filtering by name is currently supported.
-        name = filters.get('name', None)
         images = []
         if name:
             for i in self.images.values():
@@ -333,9 +386,6 @@ class DummyAWSService(aws_service.BaseAWSService):
     def get_security_group(self, sg_id, retry=False):
         return self.security_groups[sg_id]
 
-    def add_security_group_rule(self, sg_id, **kwargs):
-        pass
-
     def delete_security_group(self, sg_id):
         if self.delete_security_group_callback:
             self.delete_security_group_callback(sg_id)
@@ -357,11 +407,6 @@ class DummyAWSService(aws_service.BaseAWSService):
     def get_default_vpc(self):
         return self.default_vpc
 
-    def get_instance_attribute(self, instance_id, attribute, dry_run=False):
-        if attribute == 'sriovNetSupport':
-            return dict()
-        return None
-
     def iam_role_exists(self, role):
         if role == 'brkt-objectstore':
             return True
@@ -379,24 +424,39 @@ class DummyAWSService(aws_service.BaseAWSService):
             error_code_regexp=error_code_regexp
         )
 
+    def authorize_security_group_ingress(self, sg_id, port):
+        pass
+
 
 def build_aws_service():
     aws_svc = DummyAWSService()
 
     # Encryptor image
-    bdm = BlockDeviceMapping()
-    bdm['/dev/sda1'] = BlockDeviceType()
-    bdm['/dev/sdg'] = BlockDeviceType()
-    id = aws_svc.register_image(name='metavisor-0-0-1234', block_device_map=bdm)
+    enc_snap1 = Snapshot()
+    enc_snap1.id = 'snap-' + new_id()
+    aws_svc.snapshots[enc_snap1.id] = enc_snap1
+
+    enc_snap2 = Snapshot()
+    enc_snap2.id = 'snap-' + new_id()
+    aws_svc.snapshots[enc_snap2.id] = enc_snap2
+
+    enc_dev1 = boto3_device.make_device(
+        device_name='/dev/sda1', snapshot_id=enc_snap1.id)
+    enc_dev2 = boto3_device.make_device(
+        device_name='/dev/sdg', snapshot_id=enc_snap2.id)
+    id = aws_svc.register_image(
+        name='metavisor-0-0-1234', block_device_mappings=[enc_dev1, enc_dev2])
     encryptor_image = aws_svc.get_image(id)
 
     # Guest image
-    bdm = BlockDeviceMapping()
-    bdm['/dev/sda1'] = BlockDeviceType(snapshot_id='snap-12345678')
-    snapshot = Snapshot()
-    snapshot.id = 'snap-12345678'
-    aws_svc.snapshots[snapshot.id] = snapshot
-    id = aws_svc.register_image(name='Guest image', block_device_map=bdm)
+    guest_snap = Snapshot()
+    guest_snap.id = 'snap-' + new_id()
+    aws_svc.snapshots[guest_snap.id] = guest_snap
+
+    guest_dev = boto3_device.make_device(
+        device_name='/dev/sda1', snapshot_id=guest_snap.id)
+    id = aws_svc.register_image(
+        name='Guest image', block_device_mappings=[guest_dev])
     guest_image = aws_svc.get_image(id)
 
     return aws_svc, encryptor_image, guest_image
@@ -408,14 +468,13 @@ class TestRetryBoto(unittest.TestCase):
         self.num_calls = 0
         brkt_cli.util.SLEEP_ENABLED = False
 
-    def _fail_for_n_calls(self, n, status=400):
-        """ Raise EC2ResponseError the first n times that the method is
+    def _fail_for_n_calls(self, n, code='InvalidInstanceID.NotFound'):
+        """ Raise ClientError the first n times that the method is
         called.
         """
         self.num_calls += 1
         if self.num_calls <= n:
-            e = EC2ResponseError(status, None)
-            e.error_code = 'InvalidInstanceID.NotFound'
+            e = new_client_error(code)
             raise e
 
     def test_five_failures(self):
@@ -438,7 +497,7 @@ class TestRetryBoto(unittest.TestCase):
             r'InvalidVolumeID.\NotFound',
             initial_sleep_seconds=0.0
         )
-        with self.assertRaises(EC2ResponseError):
+        with self.assertRaises(ClientError):
             function(1)
 
     def test_no_regexp(self):
@@ -446,7 +505,7 @@ class TestRetryBoto(unittest.TestCase):
         regexp is not specified.
         """
         function = aws_service.retry_boto(self._fail_for_n_calls)
-        with self.assertRaises(EC2ResponseError):
+        with self.assertRaises(ClientError):
             function(1)
 
     def test_503(self):
@@ -454,7 +513,7 @@ class TestRetryBoto(unittest.TestCase):
         """
         function = aws_service.retry_boto(
             self._fail_for_n_calls, initial_sleep_seconds=0.0)
-        function(5, status=503)
+        function(5, code='503')
 
     def test_ssl_error(self):
         """ Test that we retry on ssl.SSLError.  This is a case that was
@@ -490,7 +549,7 @@ class TestInstance(unittest.TestCase):
         """
         aws_svc, encryptor_image, guest_image = build_aws_service()
         instance = aws_svc.run_instance(guest_image.id)
-        instance._state.name = 'error'
+        instance.state['Name'] = 'error'
         try:
             aws_service.wait_for_instance(aws_svc, instance.id, timeout=100)
         except aws_service.InstanceError as e:
@@ -542,8 +601,8 @@ class TestVolume(unittest.TestCase):
         # Create a dummy volume.
         volume = Volume()
         volume.size = 8
-        volume.id = new_id()
-        volume.status = 'detaching'
+        volume.id = 'vol-' + new_id()
+        volume.state = 'detaching'
         aws_svc.volumes[volume.id] = volume
 
         def transition_to_available(callback_volume):
@@ -552,7 +611,7 @@ class TestVolume(unittest.TestCase):
             self.assertFalse(self.num_calls > 5)
 
             if self.num_calls == 5:
-                volume.status = 'available'
+                volume.state = 'available'
 
         aws_svc.get_volume_callback = transition_to_available
         result = aws_service.wait_for_volume(aws_svc, volume.id)

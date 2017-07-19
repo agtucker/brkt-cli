@@ -591,7 +591,13 @@ class GCPService(BaseGCPService):
             return old
 
     def get_image_file(self, bucket):
-        files = self.storage.objects().list(bucket=bucket).execute()['items']
+        files = []
+        request = self.storage.objects().list(bucket=bucket)
+        # Paginate thru' the list of files in the bucket
+        while request:
+            resp = request.execute()
+            files += resp['items']
+            request = self.storage.objects().list_next(request, resp)
         # if LATEST_IMAGE exists return that
         for f in files:
             if f['name'] == LATEST_IMAGE:

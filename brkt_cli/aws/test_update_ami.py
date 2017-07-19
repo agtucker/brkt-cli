@@ -14,7 +14,6 @@
 import os
 import unittest
 
-from boto.exception import EC2ResponseError
 from brkt_cli import encryptor_service
 
 from brkt_cli import util
@@ -117,9 +116,8 @@ class TestRunUpdate(unittest.TestCase):
                 if self.call_count < 3:
                     # Simulate eventual consistency error while creating
                     # security group.
-                    e = EC2ResponseError(None, None)
-                    e.error_code = 'InvalidGroup.NotFound'
-                    raise e
+                    raise test_aws_service.new_client_error(
+                        'InvalidGroup.NotFound')
 
         aws_svc.run_instance_callback = run_instance_callback
         update_ami(

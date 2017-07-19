@@ -13,10 +13,13 @@
 # limitations under the License.
 
 import unittest
-from brkt_cli.validation import ValidationError
-from brkt_cli.aws import share_logs
-from brkt_cli.aws.model import BlockDeviceMapping, Instance, Snapshot, Volume
+
 from boto.exception import S3ResponseError
+
+import brkt_cli
+from brkt_cli.aws import share_logs, boto3_device
+from brkt_cli.aws.model import Instance, Snapshot, Volume
+from brkt_cli.validation import ValidationError
 
 
 class CurrentValue():
@@ -73,11 +76,15 @@ class ShareLogsTestService(share_logs.ShareLogsService):
 
     def get_instance(self, instance_id):
         instance = Instance()
-        instance.block_device_mapping = BlockDeviceMapping()
-        instance.block_device_mapping.current_value = CurrentValue()
-        instance._state.name = 'running'
-        instance.root_device_name = 'root'
+        instance.state['Name'] = 'running'
+        instance.root_device_name = '/dev/sda1'
         instance.id = 'test-id'
+
+        dev = boto3_device.make_device(
+            device_name='/dev/sda1',
+            volume_id='vol-1'
+        )
+        instance.block_device_mappings = [dev]
         return instance
 
     def s3_connect(self):
@@ -91,17 +98,20 @@ class ShareLogsTestService(share_logs.ShareLogsService):
 
     def get_snapshots(self, snapshot_id):
         snapshot = Snapshot()
-        snapshot.status = 'completed'
+        snapshot.state = 'completed'
         return [snapshot]
 
     def run_instance(self, image_id, instance_type,
-                     block_device_map, user_data, ebs_optimized, subnet_id):
+                     block_device_mappings, user_data, ebs_optimized, subnet_id):
         instance = Instance()
         ShareLogsTestService.created = True
         return instance
 
 
 class TestShareLogs(unittest.TestCase):
+
+    def setUp(self):
+        brkt_cli.util.SLEEP_ENABLED = False
 
     def test_path(self):
         aws_svc = ShareLogsTestService()

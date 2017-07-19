@@ -48,62 +48,7 @@ class TaggedEC2Object(EC2Object):
 
     def __init__(self, connection=None):
         super(TaggedEC2Object, self).__init__(connection)
-        self.tags = {}
-
-
-class BlockDeviceMapping(dict):
-    """
-    Represents a collection of BlockDeviceTypes when creating ec2 instances.
-
-    Example:
-    dev_sda1 = BlockDeviceType()
-    dev_sda1.size = 100   # change root volume to 100GB instead of default
-    bdm = BlockDeviceMapping()
-    bdm['/dev/sda1'] = dev_sda1
-    reservation = image.run(..., block_device_map=bdm, ...)
-    """
-
-    def __init__(self, connection=None):
-        """
-        :type connection: :class:`boto.ec2.EC2Connection`
-        :param connection: Optional connection.
-        """
-        dict.__init__(self)
-        self.connection = connection
-        self.current_name = None
-        self.current_value = None
-
-
-class BlockDeviceType(object):
-    """
-    Represents parameters for a block device.
-    """
-
-    def __init__(self,
-                 connection=None,
-                 ephemeral_name=None,
-                 no_device=False,
-                 volume_id=None,
-                 snapshot_id=None,
-                 status=None,
-                 attach_time=None,
-                 delete_on_termination=False,
-                 size=None,
-                 volume_type=None,
-                 iops=None,
-                 encrypted=None):
-        self.connection = connection
-        self.ephemeral_name = ephemeral_name
-        self.no_device = no_device
-        self.volume_id = volume_id
-        self.snapshot_id = snapshot_id
-        self.status = status
-        self.attach_time = attach_time
-        self.delete_on_termination = delete_on_termination
-        self.size = size
-        self.volume_type = volume_type
-        self.iops = iops
-        self.encrypted = encrypted
+        self.tags = []
 
 
 class ConsoleOutput(object):
@@ -137,7 +82,7 @@ class Image(TaggedEC2Object):
         self.description = None
         self.product_codes = None  # ProductCodes()
         self.billing_products = None  # BillingProducts()
-        self.block_device_mapping = None
+        self.block_device_mappings = list()
         self.root_device_type = None
         self.root_device_name = None
         self.virtualization_type = None
@@ -199,19 +144,6 @@ class InstancePlacement(object):
     def __repr__(self):
         return self.zone
 
-    def startElement(self, name, attrs, connection):
-        pass
-
-    def endElement(self, name, value, connection):
-        if name == 'availabilityZone':
-            self.zone = value
-        elif name == 'groupName':
-            self.group_name = value
-        elif name == 'tenancy':
-            self.tenancy = value
-        else:
-            setattr(self, name, value)
-
 
 class Instance(TaggedEC2Object):
     """
@@ -258,7 +190,7 @@ class Instance(TaggedEC2Object):
     :ivar platform: Platform of the instance (e.g. Windows)
     :ivar root_device_name: The name of the root device.
     :ivar root_device_type: The root device type (ebs|instance-store).
-    :ivar block_device_mapping: The Block Device Mapping for the instance.
+    :ivar block_device_mappings: The Block Device Mapping for the instance.
     :ivar state_reason: The reason for the most recent state transition.
     :ivar groups: List of security Groups associated with the instance.
     :ivar interfaces: List of Elastic Network Interfaces associated with
@@ -289,13 +221,13 @@ class Instance(TaggedEC2Object):
         self.subnet_id = None
         self.vpc_id = None
         self.private_ip_address = None
-        self.ip_address = None
+        self.public_ip_address = None
         self.requester_id = None
         self._in_monitoring_element = False
         self.persistent = False
         self.root_device_name = None
         self.root_device_type = None
-        self.block_device_mapping = None
+        self.block_device_mappings = list()
         self.state_reason = None
         self.group_name = None
         self.client_token = None
@@ -307,20 +239,13 @@ class Instance(TaggedEC2Object):
         self.virtualization_type = None
         self.architecture = None
         self.instance_profile = None
+        self.sriov_net_support = None
         self._previous_state = None
-        self._state = InstanceState()
+        self.state = dict()
         self._placement = InstancePlacement()
 
     def __repr__(self):
         return 'Instance:%s' % self.id
-
-    @property
-    def state(self):
-        return self._state.name
-
-    @property
-    def state_code(self):
-        return self._state.code
 
     @property
     def placement(self):
@@ -389,6 +314,7 @@ class Snapshot(TaggedEC2Object):
         self.status = None
         self.progress = None
         self.start_time = None
+        self.state = None
         self.owner_id = None
         self.owner_alias = None
         self.volume_size = None
@@ -426,7 +352,7 @@ class Volume(TaggedEC2Object):
         from, if applicable.
     :ivar attach_data: An AttachmentSet object.
     :ivar zone: The availability zone this volume is in.
-    :ivar type: The type of volume (standard or consistent-iops)
+    :ivar volume_type: The type of volume (standard or consistent-iops)
     :ivar iops: If this volume is of type consistent-iops, this is
         the number of IOPS provisioned (10-300).
     :ivar encrypted: True if this volume is encrypted.
@@ -441,9 +367,10 @@ class Volume(TaggedEC2Object):
         self.snapshot_id = None
         self.attach_data = None
         self.zone = None
-        self.type = None
+        self.volume_type = None
         self.iops = None
         self.encrypted = None
+        self.volume_type = 'gp2'
 
     def __repr__(self):
         return 'Volume:%s' % self.id

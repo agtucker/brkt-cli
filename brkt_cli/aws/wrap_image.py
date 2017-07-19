@@ -33,17 +33,14 @@ running the AWS command line utility.
 
 import logging
 
-from boto.exception import EC2ResponseError
-from boto.ec2.blockdevicemapping import (
-    BlockDeviceMapping,
-    EBSBlockDeviceType,
-)
+from botocore.exceptions import ClientError
 
-from brkt_cli.user_data import gzip_user_data
-from brkt_cli.instance_config import InstanceConfig
+from brkt_cli.aws import aws_service, boto3_device
 from brkt_cli.aws.aws_service import (
     EBS_OPTIMIZED_INSTANCES, wait_for_instance, run_guest_instance, clean_up,
     snapshot_root_volume)
+from brkt_cli.instance_config import InstanceConfig
+from brkt_cli.user_data import gzip_user_data
 from brkt_cli.util import make_nonce, append_suffix
 
 # End user-visible terminology.  These are resource names and descriptions
@@ -87,11 +84,7 @@ def create_instance_security_group(aws_svc, vpc_id=None):
     sg = aws_svc.create_security_group(sg_name, sg_desc, vpc_id=vpc_id)
     log.info('Created security group with id %s', sg.id)
     try:
-        aws_svc.add_security_group_rule(
-            sg.id, ip_protocol='tcp',
-            from_port=22,
-            to_port=22,
-            cidr_ip='0.0.0.0/0')
+        aws_svc.authorize_security_group_ingress(sg.id, port=22)
     except Exception as e:
         log.error('Failed adding security group rule to %s: %s', sg.id, e)
         clean_up(aws_svc, security_group_ids=[sg.id])
@@ -104,10 +97,12 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
                          wrapped_instance_name=None, subnet_id=None,
                          security_group_ids=None, instance_type='m4.large',
                          instance_config=None, iam=None):
-    temp_sg_id = None
     guest_image = aws_svc.get_image(image_id)
-    guest_root_device = guest_image.root_device_name
-    guest_snapshot = guest_image.block_device_mapping[guest_root_device].snapshot_id
+    guest_root_device = boto3_device.get_device(
+        guest_image.block_device_mappings,
+        guest_image.root_device_name
+    )
+    guest_snapshot_id = guest_root_device['Ebs']['SnapshotId']
     mv_image = aws_svc.get_image(metavisor_ami)
 
     if wrapped_instance_name:
@@ -116,40 +111,49 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
         instance_name = get_name_from_image(guest_image)
 
     try:
-        aws_svc.get_snapshot(guest_snapshot)
-    except EC2ResponseError as e:
-        if e.error_code == 'InvalidSnapshot.NotFound':
-            log.info("Insufficient permission to launch guest image. " +  e.error_message)
+        aws_svc.get_snapshot(guest_snapshot_id)
+    except ClientError as e:
+        code, message = aws_service.get_code_and_message(e)
+        if code == 'InvalidSnapshot.NotFound':
+            log.info(
+                "Insufficient permission to launch guest image. %s ",
+                message
+            )
             guest_instance = None
             try:
                 guest_instance = run_guest_instance(aws_svc, image_id,
                     subnet_id=subnet_id, instance_type=instance_type)
                 wait_for_instance(aws_svc, guest_instance.id)
-                guest_snapshot, _, _, _, _ = snapshot_root_volume(
+                guest_snapshot_id, _, _, _, _ = snapshot_root_volume(
                     aws_svc, guest_instance, image_id)
             finally:
                 if guest_instance:
                     clean_up(aws_svc, instance_ids=[guest_instance.id])
         else:
-            log.error("Unable to wrap guest image", e.error_message)
+            log.error("Unable to wrap guest image", message)
             raise
 
-    bdm = BlockDeviceMapping()
-    guest_unencrypted_root = EBSBlockDeviceType(
+    guest_unencrypted_root_dev = boto3_device.make_device(
+        device_name='/dev/sdf',
         volume_type='gp2',
-        snapshot_id=guest_snapshot,
-        delete_on_termination=True)
-    bdm['/dev/sdf'] = guest_unencrypted_root
+        snapshot_id=guest_snapshot_id,
+        delete_on_termination=True
+    )
     # Clean up the Metavisor root volume on termination
-    bdm['/dev/sda1'] = EBSBlockDeviceType(delete_on_termination=True)
+    mv_root_dev = boto3_device.make_device(
+        device_name='/dev/sda1',
+        delete_on_termination=True
+    )
+    bdm = [guest_unencrypted_root_dev, mv_root_dev]
+
     # Copy over the guest BlockDeviceMaping for ephemeral drives
-    guest_bdm = guest_image.block_device_mapping
-    for key in guest_bdm.keys():
-        guest_vol = guest_bdm[key]
-        if guest_vol.ephemeral_name:
-            log.info('Propagating block device mapping for %s at %s' %
-                     (guest_vol.ephemeral_name, key))
-            bdm[key] = guest_vol
+    for dev in guest_image.block_device_mappings:
+        virtual_name = dev.get('VirtualName')
+        if virtual_name:
+            log.info('Propagating block device mapping for %s at %s',
+                     virtual_name, dev['DeviceName'])
+            new_dev = boto3_device.make_device_for_image(dev)
+            bdm.append(new_dev)
 
     if instance_config is None:
         instance_config = InstanceConfig()
@@ -162,9 +166,9 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
             if subnet_id:
                 subnet = aws_svc.get_subnet(subnet_id)
                 vpc_id = subnet.vpc_id
-            temp_sg_id = create_instance_security_group(
+            temp_sg = create_instance_security_group(
                 aws_svc, vpc_id=vpc_id)
-            security_group_ids = [temp_sg_id]
+            security_group_ids = [temp_sg.id]
 
         ebs_optimized = instance_type in EBS_OPTIMIZED_INSTANCES
         instance = aws_svc.run_instance(
@@ -173,7 +177,7 @@ def launch_wrapped_image(aws_svc, image_id, metavisor_ami,
             security_group_ids=security_group_ids,
             user_data=compressed_user_data,
             placement=None,
-            block_device_map=bdm,
+            block_device_mappings=bdm,
             ebs_optimized=ebs_optimized,
             subnet_id=subnet_id,
             instance_profile_name=iam

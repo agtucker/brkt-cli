@@ -309,8 +309,21 @@ def add_disk_type(parser):
         '--disk-type',
         metavar='TYPE',
         dest='disk_type',
-        help='thin/thick-lazy-zeroed/thick-eager-zeroed (default: thin)',
+        choices=["thin", "thick-lazy-zeroed", "thick-eager-zeroed"],
+        help='thin/thick-lazy-zeroed/thick-eager-zeroed',
         default='thin',
+        required=False
+    )
+
+
+def add_nic_type(parser, help=argparse.SUPPRESS):
+    parser.add_argument(
+        '--nic-type',
+        metavar='NAME',
+        dest='nic_type',
+        choices=["Port", "DistributedVirtualPort", "DistributedVirtualPortGroup"],
+        help='Port/DistributedVirtualPort/DistributedVirtualPortGroup',
+        default="Port",
         required=False
     )
 
@@ -386,18 +399,6 @@ def add_bucket_name(parser, help=argparse.SUPPRESS):
         dest='bucket_name',
         help=help,
         default="solo-brkt-prod-ovf-image"
-    )
-
-
-# Optional nic-type to be used with VDS
-# Values can be Port, VirtualPort or VirtualPortGroup
-def add_nic_type(parser, help=argparse.SUPPRESS):
-    parser.add_argument(
-        '--nic-type',
-        metavar='NAME',
-        dest='nic_type',
-        help=help,
-        default="Port"
     )
 
 

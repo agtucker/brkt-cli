@@ -62,13 +62,15 @@ def get_s3_versions(bucket):
 
     s3 = boto3.resource('s3')
     s3.meta.client.meta.events.register('choose-signer.s3.*', disable_signing)
-    s3bucket = s3.Bucket(bucket)
-    s3results = s3bucket.meta.client.list_objects(Bucket=bucket,
-                                                  Delimiter='/',
-                                                  Prefix=version_prefix)
-
-    if s3results.get('CommonPrefixes'):
-        versions = [ v.get('Prefix').rstrip('/') for v in s3results.get('CommonPrefixes') ]
+    client = boto3.client('s3')
+    paginator = client.get_paginator('list_objects')
+    page_iterator = paginator.paginate(Bucket=bucket,
+                                       Delimiter='/',
+                                       Prefix=version_prefix)
+    for page in page_iterator:
+        if page.get('CommonPrefixes'):
+            versions += \
+                [ v.get('Prefix').rstrip('/') for v in page.get('CommonPrefixes') ]
 
     return versions
 

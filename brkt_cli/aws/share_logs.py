@@ -18,11 +18,7 @@ import boto
 import re
 import time
 
-from boto.ec2.blockdevicemapping import (
-    BlockDeviceMapping,
-    EBSBlockDeviceType,
-)
-from brkt_cli.aws import aws_service
+from brkt_cli.aws import aws_service, boto3_device
 from brkt_cli.validation import ValidationError
 from brkt_cli import util
 
@@ -56,11 +52,13 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
             # Find name of the root device
             root_name = instance.root_device_name
             # Get root volume ID
-            current_value = instance.block_device_mapping.current_value
-            vol_id = current_value.connection[root_name].volume_id
+            root_dev = boto3_device.get_device(
+                instance.block_device_mappings, root_name)
             # Create a snapshot of the root volume
             snapshot = aws_svc.create_snapshot(
-                volume_id=vol_id, name="temp-logs-snapshot")
+                volume_id=root_dev['Ebs']['VolumeId'],
+                name="temp-logs-snapshot"
+            )
             # Wait for snapshot to post
             log.info('Waiting for snapshot...')
             aws_service.wait_for_snapshots(aws_svc, snapshot.id)
@@ -83,11 +81,14 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
         'aws s3 cp /tmp/%s s3://%s/%s %s\n' % (logs_file, bucket, path, acl)
 
         # Specifies volume to be attached to instance
-        bdm = BlockDeviceMapping()
-        mv_disk = EBSBlockDeviceType(volume_type='gp2',
-            snapshot_id=snapshot.id, delete_on_termination=True)
-        mv_disk.size = snapshot.volume_size
-        bdm['/dev/sdg'] = mv_disk
+        mv_disk = boto3_device.make_device(
+            device_name='/dev/sdg',
+            volume_type='gp2',
+            snapshot_id=snapshot.id,
+            delete_on_termination=True,
+            volume_size=snapshot.volume_size
+        )
+        bdm = [mv_disk]
 
         # Images taken on 4/3/2017 from:
         # https://aws.amazon.com/amazon-linux-ami/
@@ -111,7 +112,7 @@ def share(aws_svc=None, logs_svc=None, instance_id=None, region=None,
         # Launch new instance, with volume and startup script
 
         new_instance = aws_svc.run_instance(
-            image_id, instance_type='m4.large', block_device_map=bdm,
+            image_id, instance_type='m4.large', block_device_mappings=bdm,
             user_data=amzn, ebs_optimized=False, subnet_id=subnet_id)
 
         # wait for instance to launch

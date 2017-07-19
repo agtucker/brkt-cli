@@ -17,8 +17,9 @@ import re
 import tempfile
 import urllib2
 
-import boto
-from boto.exception import EC2ResponseError, NoAuthHandlerFound
+import botocore
+from botocore.exceptions import ClientError
+
 from brkt_cli import instance_config_args
 
 import brkt_cli
@@ -31,8 +32,8 @@ from brkt_cli.aws import (
     wrap_image_args,
     share_logs,
     share_logs_args,
-    update_encrypted_ami_args
-)
+    update_encrypted_ami_args,
+    boto3_tag)
 from brkt_cli.aws.aws_constants import (
     TAG_ENCRYPTOR, TAG_ENCRYPTOR_SESSION_ID, TAG_ENCRYPTOR_AMI
 )
@@ -59,6 +60,7 @@ log = logging.getLogger(__name__)
 
 ENCRYPTOR_AMIS_AWS_BUCKET = 'solo-brkt-prod-net'
 
+
 def _handle_aws_errors(func):
     """Provides common error handling to subcommands that interact with AWS
     APIs.
@@ -66,40 +68,35 @@ def _handle_aws_errors(func):
     def _do_handle_aws_errors(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except NoAuthHandlerFound:
-            msg = (
-                'Unable to connect to AWS.  Are your AWS_ACCESS_KEY_ID and '
-                'AWS_SECRET_ACCESS_KEY environment variables set?'
-            )
+        except botocore.exceptions.NoCredentialsError:
             log.debug('', exc_info=1)
-            log.error(msg)
-        except EC2ResponseError as e:
-            if e.error_code == 'AuthFailure':
-                msg = 'Check your AWS login credentials and permissions'
+            raise ValidationError(
+                'Please specify AWS credentials.  For more information, see '
+                'http://boto3.readthedocs.io/en/latest/guide/'
+                'configuration.html'
+            )
+        except ClientError as e:
+            code, message = aws_service.get_code_and_message(e)
+            if code == 'AuthFailure':
                 log.debug('', exc_info=1)
-                log.error(msg + ': ' + e.error_message)
-            elif e.error_code in (
+                raise ValidationError(message)
+            elif code in (
                     'InvalidKeyPair.NotFound',
                     'InvalidSubnetID.NotFound',
                     'InvalidGroup.NotFound'
             ):
                 log.debug('', exc_info=1)
-                log.error(e.error_message)
-            elif e.error_code == 'UnauthorizedOperation':
+                log.error(message)
+            elif code == 'UnauthorizedOperation':
                 log.debug('', exc_info=1)
-                log.error(e.error_message)
+                log.error(message)
                 log.error(
                     'Unauthorized operation.  Check the IAM policy for your '
                     'AWS account.'
                 )
-            elif e.error_code == 'OptInRequired':
-                log.debug('', exc_info=1)
-                log.error(e.error_message)
-                log.error(
-                    'Opt in required for the AMI. Go to the marketplace and subscribe to the AMI.'
-                )
             else:
                 raise
+
         return 1
     return _do_handle_aws_errors
 
@@ -188,7 +185,7 @@ def run_wrap_image(values, config):
         brkt_env=brkt_env,
         launch_token=lt)
 
-    instance_id = wrap_image.launch_wrapped_image(
+    instance = wrap_image.launch_wrapped_image(
         aws_svc=aws_svc,
         image_id=guest_image.id,
         metavisor_ami=metavisor_ami,
@@ -201,7 +198,7 @@ def run_wrap_image(values, config):
     )
     # Print the Instance ID to stdout, in case the caller wants to process
     # the output. Log messages go to stderr
-    print(instance_id)
+    print instance.id
     return 0
 
 
@@ -240,7 +237,7 @@ def get_centos_ami_id(stock_image_version, aws_svc):
         prod_code = 'aw0evgkw8e5c1q413zgy5pjce'
     else:
         raise ValidationError('CentOS version must be 6 or 7.')
-    images = aws_svc.get_images(filters={'product-code': prod_code})
+    images = aws_svc.get_images(product_code=prod_code)
     if len(images) == 0:
         raise ValidationError(
             'Unable to find AMI for CentOS %s.' % stock_image_version)
@@ -260,11 +257,11 @@ def run_encrypt(values, config, verbose=False):
         'Retry timeout=%.02f, initial sleep seconds=%.02f',
         aws_svc.retry_timeout, aws_svc.retry_initial_sleep_seconds)
 
+    aws_svc.connect(values.region, key_name=values.key_name)
+
     if values.validate:
         # Validate the region before connecting.
         _validate_region(aws_svc, values.region)
-
-    aws_svc.connect(values.region, key_name=values.key_name)
 
     # Keywords check
     guest_ami_id = values.ami
@@ -399,8 +396,7 @@ def run_update(values, config, verbose=False):
     encrypted_ami_name = values.encrypted_ami_name
     if encrypted_ami_name:
         # Check for name collision.
-        filters = {'name': encrypted_ami_name}
-        if aws_svc.get_images(filters=filters, owners=['self']):
+        if aws_svc.get_images(name=encrypted_ami_name, owner_alias='self'):
             raise ValidationError(
                 'You already own image named %s' % encrypted_ami_name)
     else:
@@ -451,12 +447,6 @@ class AWSSubcommand(Subcommand):
 
     def name(self):
         return 'aws'
-
-    def init_logging(self, verbose):
-        self.verbose = verbose
-        # Set boto logging to FATAL, since boto logs auth errors and 401s
-        # at ERROR level.
-        boto.log.setLevel(logging.FATAL)
 
     def setup_config(self, config):
         config.register_option(
@@ -561,7 +551,7 @@ def _validate_subnet_and_security_groups(aws_svc,
     in the same subnet.
 
     :return True if all of the ids are valid and in the same VPC
-    :raise EC2ResponseError or ValidationError if any of the ids are invalid
+    :raise ClientError or ValidationError if any of the ids are invalid
     """
     vpc_ids = set()
     if subnet_id:
@@ -607,12 +597,13 @@ def _validate_ami(aws_svc, ami_id):
     """
     try:
         image = aws_svc.get_image(ami_id)
-    except EC2ResponseError, e:
-        if e.error_code.startswith('InvalidAMIID'):
+    except ClientError as e:
+        code, message = aws_service.get_code_and_message(e)
+        if code.startswith('InvalidAMIID'):
             raise ValidationError(
-                'Could not find ' + ami_id + ': ' + e.error_code)
+                'Could not find ' + ami_id + ': ' + code)
         else:
-            raise ValidationError(e.error_message)
+            raise ValidationError(message)
     if not image:
         raise ValidationError('Could not find ' + ami_id)
     return image
@@ -625,7 +616,8 @@ def _validate_guest_ami(aws_svc, ami_id):
     :raise: ValidationError if the AMI id is invalid
     """
     image = _validate_ami(aws_svc, ami_id)
-    if TAG_ENCRYPTOR in image.tags:
+    tags = boto3_tag.tags_to_dict(image.tags)
+    if tags and TAG_ENCRYPTOR in tags:
         raise ValidationError('%s is already an encrypted image' % ami_id)
 
     # Amazon's API only returns 'windows' or nothing.  We're not currently
@@ -653,7 +645,7 @@ def _validate_guest_encrypted_ami(aws_svc, ami_id, encryptor_ami_id):
     ami = _validate_ami(aws_svc, ami_id)
 
     # Is this encrypted by Bracket?
-    tags = ami.tags
+    tags = boto3_tag.tags_to_dict(ami.tags)
     expected_tags = (TAG_ENCRYPTOR,
                      TAG_ENCRYPTOR_SESSION_ID,
                      TAG_ENCRYPTOR_AMI)
@@ -705,14 +697,17 @@ def _validate(aws_svc, values, encryptor_ami_id):
         _validate_encryptor_ami(aws_svc, encryptor_ami_id)
 
         if values.encrypted_ami_name:
-            filters = {'name': values.encrypted_ami_name}
-            if aws_svc.get_images(filters=filters, owners=['self']):
+            images = aws_svc.get_images(
+                name=values.encrypted_ami_name,
+                owner_alias='self')
+            if images:
                 raise ValidationError(
                     'You already own an image named %s' %
                     values.encrypted_ami_name
                 )
-    except EC2ResponseError as e:
-        raise ValidationError(e.message)
+    except ClientError as e:
+        _, message = aws_service.get_code_and_message(e)
+        raise ValidationError(message)
 
 
 def _validate_region(aws_svc, region_name):
